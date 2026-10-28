@@ -21,19 +21,38 @@ def create_bear_researcher(llm):
         fundamentals_report = report_or_absent(state["fundamentals_report"], "fundamentals")
         instrument_context = get_instrument_context_from_state(state)
         asset_type = state.get("asset_type", "stock")
-        target_label = "stock" if asset_type == "stock" else "asset"
-        fundamentals_label = (
-            "Company fundamentals report"
-            if asset_type == "stock"
-            else "Asset fundamentals report (may be unavailable for crypto)"
-        )
+        if asset_type == "mutual_fund":
+            target_label = "Indian mutual fund scheme"
+            fundamentals_label = "Mutual Fund performance and AMFI details report"
+            asset_risk_guidelines = (
+                "- Fund Underperformance: Scrutinize trailing returns (1M, 6M, 1Y, 3Y, 5Y) for lag against category peers or benchmark index.\n"
+                "- Cost & Inefficiencies: Highlight expense ratios, potential exit loads, AUM bloat, and fund manager turnover.\n"
+                "- Market Exposure: Note that open-ended funds bear full market downside without cash hedging."
+            )
+        elif asset_type == "etf":
+            target_label = "Indian exchange traded fund (ETF)"
+            fundamentals_label = "ETF performance and benchmark report"
+            asset_risk_guidelines = (
+                "- ETF Limitations: Highlight tracking error, secondary market illiquidity, wide bid-ask spreads, and premium/discount dislocations.\n"
+                "- Unhedged Index Risk: Note lack of active risk management during broad market drawdowns."
+            )
+        elif asset_type == "crypto":
+            target_label = "crypto asset"
+            fundamentals_label = "Asset fundamentals report (may be unavailable for crypto)"
+            asset_risk_guidelines = "- Crypto Volatility: Highlight regulatory scrutiny, volatility, and lack of fundamental cash flows."
+        else:
+            target_label = "Indian equity stock"
+            fundamentals_label = "Company fundamentals report"
+            asset_risk_guidelines = (
+                "- Valuation & Growth: Highlight elevated P/E vs industry, revenue slowdown, or EBITDA margin erosion.\n"
+                "- Financial & Operational Risks: Emphasize debt levels, working capital cycles, corporate governance, and FII outflow headwinds."
+            )
 
         prompt = f"""You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
 
 Key points to focus on:
-
-- Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
-- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.
+{asset_risk_guidelines}
+- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining margins, or industry headwinds.
 - Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
 - Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
 - Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.

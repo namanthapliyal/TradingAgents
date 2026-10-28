@@ -70,7 +70,7 @@ Ground every conclusion in specific evidence from the analysts. The risk debate 
 Write these sections, in this order, starting with the rating on its own line:
 
 - **Rating**: exactly one of Buy / Overweight / Hold / Underweight / Sell
-- **Executive Summary**: the call and how to act on it
+- **Executive Summary**: the call and how to act on it (for Mutual Funds: specify SIP allocation, lumpsum entry or redemption/switch, and holding horizon in years; for Stocks/ETFs: specify position sizing in INR ₹ and risk parameters)
 - **Investment Thesis**: the evidence that decided it, and what would change it
 
 {NO_EXTERNAL_TOOLS}{get_language_instruction()}"""

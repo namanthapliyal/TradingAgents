@@ -289,3 +289,41 @@ def get_prediction_markets(
         str: A formatted markdown report of matching prediction markets
     """
     return route_to_vendor("get_prediction_markets", topic, limit, trade_date or None)
+
+
+@tool
+def get_mutual_fund_info(
+    scheme: Annotated[str, InjectedState("company_of_interest")],
+) -> str:
+    """Retrieve detailed Net Asset Value (NAV), trailing historical returns (1M, 6M, 1Y, 3Y, 5Y),
+    fund house (AMC), and category classification for an Indian Mutual Fund scheme from AMFI.
+
+    Args:
+        scheme (str): AMFI scheme code (e.g. 122639) or mutual fund scheme name.
+    Returns:
+        str: A formatted markdown report containing mutual fund performance and metadata.
+    """
+    from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_report
+    try:
+        return get_mutual_fund_report(scheme)
+    except Exception as exc:
+        return f"Error fetching mutual fund data for {scheme}: {exc}"
+
+
+@tool
+def get_etf_info(
+    ticker: Annotated[str, InjectedState("company_of_interest")],
+) -> str:
+    """Retrieve key metrics for an Indian exchange-traded fund (ETF): underlying benchmark index,
+    current market price, 52-week range, trading volume, and liquidity.
+
+    Args:
+        ticker (str): ETF ticker symbol (e.g. NIFTYBEES, GOLDBEES, BANKBEES).
+    Returns:
+        str: A formatted markdown report containing ETF metrics.
+    """
+    from tradingagents.dataflows.vendors.etf_vendor import get_etf_report
+    try:
+        return get_etf_report(ticker)
+    except Exception as exc:
+        return f"Error fetching ETF data for {ticker}: {exc}"

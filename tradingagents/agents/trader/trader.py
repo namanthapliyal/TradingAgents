@@ -54,9 +54,11 @@ def create_trader(llm):
                     # levels invites a percentage ("15%"), which is not a price
                     # and fails the structured parse (#1288).
                     + "State entry price and stop-loss as absolute price levels in the "
-                    "instrument's quote currency (for example 189.5), never a percentage "
+                    "instrument's quote currency (for example 189.5 in INR ₹ or USD $), never a percentage "
                     "or a range; convert a percentage distance to the price level it "
                     "implies, or omit the field if you cannot state a number. "
+                    "For Indian Mutual Funds where trading stop-loss does not apply, omit entry/stop levels "
+                    "and specify SIP allocation or lumpsum tranche in Position Sizing and Reasoning. "
                     + NO_EXTERNAL_TOOLS
                     + get_language_instruction()
                 ),

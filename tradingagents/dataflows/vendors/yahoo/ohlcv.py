@@ -207,22 +207,28 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
             data = cached
 
     if data is None:
-        # yf.download catches every error, a rate limit included, and returns
-        # an empty frame. Ticker.history raises the rate limit, so it is retried.
-        downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
-            start=start_str,
-            end=end_str,
-            auto_adjust=True,
-            actions=False,
-        ))
-        if downloaded is None:
-            raise_for_empty(symbol, canonical, "price rows")
-        downloaded = _ensure_date_column(downloaded.reset_index())
-        # Only cache real data — never persist an empty frame.
-        if downloaded.empty or "Close" not in downloaded.columns:
-            raise_for_empty(symbol, canonical, "price rows")
-        replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
-        data = downloaded
+        if canonical.isdigit() and len(canonical) >= 5:
+            from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_nav_df
+            downloaded = get_mutual_fund_nav_df(canonical)
+            replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+            data = downloaded
+        else:
+            # yf.download catches every error, a rate limit included, and returns
+            # an empty frame. Ticker.history raises the rate limit, so it is retried.
+            downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
+                start=start_str,
+                end=end_str,
+                auto_adjust=True,
+                actions=False,
+            ))
+            if downloaded is None:
+                raise_for_empty(symbol, canonical, "price rows")
+            downloaded = _ensure_date_column(downloaded.reset_index())
+            # Only cache real data — never persist an empty frame.
+            if downloaded.empty or "Close" not in downloaded.columns:
+                raise_for_empty(symbol, canonical, "price rows")
+            replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+            data = downloaded
 
     data = _clean_dataframe(data)
 

@@ -18,8 +18,15 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_stock as get_alpha_vantage_stock,
 )
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
+from tradingagents.dataflows.vendors.indian_news import get_news_indian
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
+)
+from tradingagents.dataflows.vendors.screener_in.fundamentals import (
+    get_balance_sheet as get_screener_balance_sheet,
+    get_cashflow as get_screener_cashflow,
+    get_fundamentals as get_screener_fundamentals,
+    get_income_statement as get_screener_income_statement,
 )
 from tradingagents.dataflows.vendors.sec_edgar import (
     get_balance_sheet as get_sec_edgar_balance_sheet,
@@ -108,26 +115,32 @@ VENDOR_METHODS = {
     # fundamental_data
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
+        "screener_in": get_screener_fundamentals,
         "yfinance": get_yfinance_fundamentals,
     },
     "get_balance_sheet": {
         "alpha_vantage": get_alpha_vantage_balance_sheet,
+        "screener_in": get_screener_balance_sheet,
         "sec_edgar": get_sec_edgar_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
     },
     "get_cashflow": {
         "alpha_vantage": get_alpha_vantage_cashflow,
+        "screener_in": get_screener_cashflow,
         "sec_edgar": get_sec_edgar_cashflow,
         "yfinance": get_yfinance_cashflow,
     },
     "get_income_statement": {
         "alpha_vantage": get_alpha_vantage_income_statement,
+        "screener_in": get_screener_income_statement,
         "sec_edgar": get_sec_edgar_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
+        "indian_news": get_news_indian,
+        "google_news_in": get_news_indian,
         "yfinance": get_news_yfinance,
     },
     "get_global_news": {

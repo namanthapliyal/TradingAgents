@@ -187,12 +187,16 @@ MODEL_OPTIONS: ProviderModeOptions = {
     # `ollama pull` beyond the three suggested defaults.
     "ollama": {
         "quick": [
+            ("Qwen 2.5 Coder 1.5B - Ultra-fast, fits in VRAM (<1GB)", "qwen2.5-coder:1.5b"),
+            ("Qwen 2.5 Coder 7B - Fast worker, code & reasoning (4.7GB)", "qwen2.5-coder:7b"),
             ("Qwen3:latest (8B)", "qwen3:latest"),
             ("GPT-OSS:latest (20B)", "gpt-oss:latest"),
             ("GLM-4.7-Flash:latest (30B)", "glm-4.7-flash:latest"),
             ("Custom model ID", "custom"),
         ],
         "deep": [
+            ("Qwen 2.5 Coder 7B - Deep reasoning & worker (4.7GB)", "qwen2.5-coder:7b"),
+            ("Qwen 2.5 Coder 1.5B - Lightweight alternative (<1GB)", "qwen2.5-coder:1.5b"),
             ("GLM-4.7-Flash:latest (30B)", "glm-4.7-flash:latest"),
             ("GPT-OSS:latest (20B)", "gpt-oss:latest"),
             ("Qwen3:latest (8B)", "qwen3:latest"),

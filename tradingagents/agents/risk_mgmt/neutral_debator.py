@@ -26,6 +26,14 @@ def create_neutral_debator(llm):
         fundamentals_report = report_or_absent(state["fundamentals_report"], "fundamentals")
         instrument_context = get_instrument_context_from_state(state)
         portfolio_context = get_portfolio_context_from_state(state)
+        asset_type = state.get("asset_type", "stock")
+        fundamentals_label = (
+            "Mutual Fund Performance & AMFI Report"
+            if asset_type == "mutual_fund"
+            else "ETF Metrics & Benchmark Report"
+            if asset_type == "etf"
+            else "Company Fundamentals Report"
+        )
 
         trader_decision = state["trader_investment_plan"]
 
@@ -40,7 +48,7 @@ Your task is to challenge both the Aggressive and Conservative Analysts, pointin
 Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
-Company Fundamentals Report: {fundamentals_report}
+{fundamentals_label}: {fundamentals_report}
 Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the conservative analyst: {current_conservative_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
 Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting.""" + get_language_instruction()
@@ -55,10 +63,10 @@ Engage actively by analyzing both sides critically, addressing weaknesses in the
             "conservative_history": risk_debate_state.get("conservative_history", ""),
             "neutral_history": neutral_history + "\n" + argument,
             "latest_speaker": "Neutral",
-            "current_aggressive_response": risk_debate_state.get(
-                "current_aggressive_response", ""
+            "current_aggressive_response": risk_debate_state.get("current_aggressive_response", ""),
+            "current_conservative_response": risk_debate_state.get(
+                "current_conservative_response", ""
             ),
-            "current_conservative_response": risk_debate_state.get("current_conservative_response", ""),
             "current_neutral_response": argument,
             "count": risk_debate_state["count"] + 1,
         }

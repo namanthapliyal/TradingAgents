@@ -46,7 +46,7 @@ Write these sections, in this order, starting with the recommendation on its own
 
 - **Recommendation**: exactly one of Buy / Overweight / Hold / Underweight / Sell
 - **Rationale**: which arguments decided it
-- **Strategic Actions**: concrete steps for the trader, sized against a standard allocation
+- **Strategic Actions**: concrete steps for the trader, sized against a standard allocation (for Mutual Funds: specify SIP vs lumpsum strategy, allocation tranches, and review horizon; for Stocks/ETFs: specify entry points and position sizing)
 
 {NO_EXTERNAL_TOOLS}""" + get_language_instruction()
 

@@ -218,6 +218,92 @@ __marimo__/
 # Cache
 **/data_cache/
 
-# Enterprise env file (secrets) and generated run reports
+# -------------------------------------------------------------
+# Tradex Virtual Environments & Local Runtimes
+# -------------------------------------------------------------
+.tradex/
+.tradex
+*.venv/
+
+# -------------------------------------------------------------
+# Environment & Secrets
+# -------------------------------------------------------------
+.env
+.env.*
 .env.enterprise
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.der
+*.csr
+*.cer
+
+# -------------------------------------------------------------
+# Credentials, Authentication Tokens & Session State
+# -------------------------------------------------------------
+credentials.json
+token.json
+tokens.json
+secrets.json
+auth.json
+*.jwt
+*.token
+.secrets/
+*session*.json
+*cred*.json
+neo_*.json
+access_token*
+session_token*
+auth_token*
+
+# -------------------------------------------------------------
+# Databases, Checkpoints & Run Outputs
+# -------------------------------------------------------------
+checkpoints/
+results/
+eval_results/
 reports/
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.db-journal
+*.rdb
+
+# -------------------------------------------------------------
+# Personal Portfolios & Financial Holding Data
+# (Prevents accidental commits of real user holding files)
+# -------------------------------------------------------------
+portfolio.json
+*portfolio*.json
+*holdings*.csv
+*holdings*.json
+my_portfolio*
+my_holdings*
+!tests/**/portfolio*.json
+!tests/**/holdings*.json
+
+# -------------------------------------------------------------
+# Local Workspace Notes, Scratchpad & Dumps
+# -------------------------------------------------------------
+.work-progress.txt
+GAPS_TODO.html
+graphify-out/
+scratch/
+temp/
+tmp/
+*.log
+
+# -------------------------------------------------------------
+# IDE & Operating System
+# -------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+

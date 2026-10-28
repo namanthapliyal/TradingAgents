@@ -27,6 +27,10 @@ def get_YFin_data_online(
     # Resolve broker/forex symbols to Yahoo's convention (XAUUSD+ -> GC=F).
     canonical = normalize_symbol(symbol)
 
+    if canonical.isdigit() and len(canonical) >= 5:
+        from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_stock_data_csv
+        return get_mutual_fund_stock_data_csv(canonical, start_date, end_date)
+
     # yfinance treats ``end`` as EXCLUSIVE, so it would drop the requested
     # end_date row (and the current day when end_date is today). Request one day
     # past end_date so the requested range is actually inclusive (#986/#987).
