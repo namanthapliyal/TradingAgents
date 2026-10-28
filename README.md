@@ -306,6 +306,30 @@ Alternatively, copy `.env.example` to `.env` and fill in your keys:
 cp .env.example .env
 ```
 
+### Interactive Web UI Dashboard
+
+If you prefer a rich graphical interface in your browser rather than the terminal CLI (avoiding terminal character cropping, column truncation, or cramped buffers), launch the live Web Dashboard:
+
+```powershell
+# Windows PowerShell
+$env:PYTHONUTF8=1; .tradex\Scripts\python.exe -m cli.main ui
+```
+```bash
+# Bash / Linux / macOS
+tradingagents ui
+# or
+python -m cli.main ui
+```
+
+This starts a local web dashboard at `http://127.0.0.1:8080` and automatically opens your browser:
+- **Interactive Forms:** Select any ticker (`VEDPOWER`, `RELIANCE.NS`, `122639`, `NIFTYBEES`, `NVDA`, `BTC-USD`), analysis date, depth, and analysts.
+- **One-Click Host Toggle:** Switch between **Google Colab Hosted LLM** and **Local Ollama** instantly.
+- **Real-Time Progress Pipeline:** Visually monitor each step: Analysts $\to$ Bull/Bear Debate $\to$ Trader $\to$ Risk Management $\to$ Portfolio Manager.
+- **Uncropped Live Stream:** Full real-time message text and tool calls without terminal window bounds.
+- **Full Formatted Report Viewer:** Directly read and interact with the complete HTML report (`complete_report.html`) in full fidelity with table of contents and rating badges.
+
+---
+
 ### CLI Usage
 
 Launch the interactive CLI:
@@ -341,7 +365,8 @@ A saved report also includes `complete_report.html`, the report as one page with
 
 | Goal | Command | Description |
 | :--- | :--- | :--- |
-| **Interactive Wizard** | `tradingagents run` | Launches interactive UI for ticker, date, analysts, models. |
+| **Interactive Web UI** | `tradingagents ui` | Launches full graphical web dashboard in your browser (`http://localhost:8080`). |
+| **Interactive Terminal Wizard** | `tradingagents run` | Launches interactive CLI for ticker, date, analysts, models. |
 | **Use Google Colab LLM** | `tradingagents run --ticker <TICKER> --colab` | Offloads inference to Colab GPU via Cloudflare tunnel. |
 | **Use Local Ollama** | `tradingagents run --ticker <TICKER> --local` | Routes to local Ollama daemon (`localhost:11434`). |
 | **Explicit Host Flag** | `tradingagents run --ticker <TICKER> --host colab` | Explicitly targets `colab` or `local` host mode. |

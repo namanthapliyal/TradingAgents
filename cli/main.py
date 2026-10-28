@@ -404,5 +404,20 @@ def portfolio_analyze(
         console.print(f"\n[green][+] Analysis saved to: {output}[/green]")
 
 
+@app.command("ui")
+@app.command("web")
+def web_ui(
+    port: int = typer.Option(8080, "--port", "-p", help="Port to serve the Web Dashboard on"),
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host address to bind to"),
+    no_browser: bool = typer.Option(
+        False, "--no-browser", help="Do not open browser automatically"
+    ),
+):
+    """Launch the interactive Tradex Agent Web Dashboard in your browser."""
+    from cli.web_app import run_web_server
+
+    run_web_server(host=host, port=port, open_browser=not no_browser)
+
+
 if __name__ == "__main__":
     app()
