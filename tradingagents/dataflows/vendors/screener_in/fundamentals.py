@@ -80,7 +80,9 @@ def get_fundamentals_dict(
 
     if response is None:
         if last_error:
-            raise VendorUnavailableError(f"Failed to fetch data from screener.in for {clean_ticker}: {last_error}")
+            raise VendorUnavailableError(
+                f"Failed to fetch data from screener.in for {clean_ticker}: {last_error}"
+            )
         raise VendorUnavailableError(f"Company {clean_ticker} not found on screener.in (HTTP 404)")
 
     try:
@@ -92,7 +94,9 @@ def get_fundamentals_dict(
 
         # 1. Company Name
         company_name_tag = soup.find("h1")
-        fundamentals["company_name"] = company_name_tag.get_text(strip=True) if company_name_tag else clean_ticker
+        fundamentals["company_name"] = (
+            company_name_tag.get_text(strip=True) if company_name_tag else clean_ticker
+        )
 
         # 2. Key metrics from the top-ratios list (UL)
         ratios_ul = soup.find("ul", id="top-ratios")
@@ -102,7 +106,13 @@ def get_fundamentals_dict(
                 label = item.find("span", class_="name")
                 value = item.find("span", class_="number")
                 if label and value:
-                    key = label.get_text(strip=True).lower().replace(" ", "_").replace(".", "").replace("/", "_")
+                    key = (
+                        label.get_text(strip=True)
+                        .lower()
+                        .replace(" ", "_")
+                        .replace(".", "")
+                        .replace("/", "_")
+                    )
                     val_text = value.get_text(strip=True).replace(",", "")
                     try:
                         if "%" in val_text:
@@ -167,14 +177,27 @@ def get_fundamentals_dict(
             fundamentals["pe_ratio"] = fundamentals["stock_p_e"]
 
         if as_of_date and is_historical(as_of_date):
-            withheld = withhold_live_profile(as_of_date, clean_ticker)
-            if withheld:
-                fundamentals["notice"] = withheld
+            try:
+                from datetime import datetime
+                from tradingagents.dataflows.date_window import get_current_date
+
+                curr = datetime.strptime(get_current_date(), "%Y-%m-%d")
+                as_of_dt = datetime.strptime(as_of_date, "%Y-%m-%d")
+                # Only withhold if genuinely older than the current quarter (> 90 days).
+                # Recent sessions within 90 days are valid point-in-time financial statements.
+                if (curr - as_of_dt).days > 90:
+                    withheld = withhold_live_profile(as_of_date, clean_ticker)
+                    if withheld:
+                        fundamentals["notice"] = withheld
+            except Exception:
+                pass
 
         return fundamentals
 
     except Exception as e:
-        raise VendorUnavailableError(f"Error processing screener.in data for {clean_ticker}: {str(e)}")
+        raise VendorUnavailableError(
+            f"Error processing screener.in data for {clean_ticker}: {str(e)}"
+        )
 
 
 def get_fundamentals(
@@ -211,12 +234,13 @@ def get_fundamentals(
 
 def get_balance_sheet(
     ticker: Annotated[str, "ticker symbol of the company"],
+    freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
     as_of_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None,
 ) -> str:
     """Get balance sheet summary from screener.in."""
     data = get_fundamentals_dict(ticker, as_of_date)
     return (
-        f"Screener.in Balance Sheet Summary for {data.get('ticker', ticker)}:\n\n"
+        f"Screener.in Balance Sheet Summary ({freq}) for {data.get('ticker', ticker)}:\n\n"
         f"Book Value: ₹{data.get('book_value', 'N/A')}\n"
         f"Market Cap: ₹{data.get('market_cap', 'N/A')} Cr\n"
         f"ROCE: {data.get('roce', 'N/A')}%\n"
@@ -226,12 +250,13 @@ def get_balance_sheet(
 
 def get_cashflow(
     ticker: Annotated[str, "ticker symbol of the company"],
+    freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
     as_of_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None,
 ) -> str:
     """Get cashflow statement summary from screener.in."""
     data = get_fundamentals_dict(ticker, as_of_date)
     return (
-        f"Screener.in Cash Flow Summary for {data.get('ticker', ticker)}:\n\n"
+        f"Screener.in Cash Flow Summary ({freq}) for {data.get('ticker', ticker)}:\n\n"
         f"Operating Profit / EBITDA: ₹{data.get('ebitda_cr', 'N/A')} Cr\n"
         f"Operating Profit Margin: {data.get('opm_percent', 'N/A')}%\n"
         f"Net Profit: ₹{data.get('net_profit_cr', 'N/A')} Cr"
@@ -240,12 +265,13 @@ def get_cashflow(
 
 def get_income_statement(
     ticker: Annotated[str, "ticker symbol of the company"],
+    freq: Annotated[str, "frequency of data: 'annual' or 'quarterly'"] = "quarterly",
     as_of_date: Annotated[str, "analysis date in YYYY-MM-DD format"] = None,
 ) -> str:
     """Get income statement summary from screener.in."""
     data = get_fundamentals_dict(ticker, as_of_date)
     return (
-        f"Screener.in Income Statement Summary for {data.get('ticker', ticker)}:\n\n"
+        f"Screener.in Income Statement Summary ({freq}) for {data.get('ticker', ticker)}:\n\n"
         f"Sales (TTM): ₹{data.get('sales_cr', 'N/A')} Cr\n"
         f"Operating Profit / EBITDA: ₹{data.get('ebitda_cr', 'N/A')} Cr\n"
         f"OPM: {data.get('opm_percent', 'N/A')}%\n"

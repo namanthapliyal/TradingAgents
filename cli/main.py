@@ -39,6 +39,9 @@ def _execute_analysis(
     save: bool | None,
     show: bool | None,
     html: bool | None,
+    host: str | None = None,
+    colab: bool = False,
+    local: bool = False,
 ):
     if clear_checkpoints:
         from tradingagents.graph.checkpointer import clear_all_checkpoints
@@ -62,6 +65,12 @@ def _execute_analysis(
             "show": show,
             "html": html,
         }
+        if host is not None:
+            flags["host"] = host
+        if colab:
+            flags["colab"] = colab
+        if local:
+            flags["local"] = local
         run_analysis(checkpoint=checkpoint, portfolio=portfolio_context, flags=flags)
     except _NO_CONSOLE_ERRORS:
         # A terminal with no console buffer cannot host the interactive prompts.
@@ -114,6 +123,22 @@ def analyze(
         "--html/--no-html",
         help="Save the report as one HTML page too, complete_report.html, without asking (default: yes)",
     ),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help="LLM host: 'colab' (Google Colab via Cloudflare tunnel) or 'local'/'self-hosted' (Ollama).",
+    ),
+    colab: bool = typer.Option(
+        False,
+        "--colab",
+        help="Use Google Colab hosted LLM (shorthand for --host colab).",
+    ),
+    local: bool = typer.Option(
+        False,
+        "--local",
+        "--self-hosted",
+        help="Use self-hosted local Ollama LLM (shorthand for --host local).",
+    ),
 ):
     """Run an analysis. This is what a bare `tradingagents` does.
 
@@ -123,7 +148,18 @@ def analyze(
     if ctx.invoked_subcommand is not None:
         return
     _execute_analysis(
-        checkpoint, clear_checkpoints, portfolio, ticker, date, analysts, save, show, html
+        checkpoint,
+        clear_checkpoints,
+        portfolio,
+        ticker,
+        date,
+        analysts,
+        save,
+        show,
+        html,
+        host=host,
+        colab=colab,
+        local=local,
     )
 
 
@@ -164,10 +200,37 @@ def run_command(
         "--html/--no-html",
         help="Save the report as one HTML page too, complete_report.html, without asking (default: yes)",
     ),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help="LLM host: 'colab' (Google Colab via Cloudflare tunnel) or 'local'/'self-hosted' (Ollama).",
+    ),
+    colab: bool = typer.Option(
+        False,
+        "--colab",
+        help="Use Google Colab hosted LLM (shorthand for --host colab).",
+    ),
+    local: bool = typer.Option(
+        False,
+        "--local",
+        "--self-hosted",
+        help="Use self-hosted local Ollama LLM (shorthand for --host local).",
+    ),
 ):
     """Run multi-agent trading analysis for a ticker (alias for default command)."""
     _execute_analysis(
-        checkpoint, clear_checkpoints, portfolio, ticker, date, analysts, save, show, html
+        checkpoint,
+        clear_checkpoints,
+        portfolio,
+        ticker,
+        date,
+        analysts,
+        save,
+        show,
+        html,
+        host=host,
+        colab=colab,
+        local=local,
     )
 
 

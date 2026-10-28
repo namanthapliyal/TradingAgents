@@ -51,11 +51,12 @@ Latest World Affairs Report: {news_report}
 {fundamentals_label}: {fundamentals_report}
 Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the neutral analyst: {current_neutral_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting.""" + get_language_instruction()
+Engage by questioning their optimism and emphasizing capital preservation and margin of safety. State your risk mitigation thesis directly and assertively without conversational filler.""" + get_language_instruction()
 
         response = llm.invoke(prompt)
+        content = response.content if hasattr(response, "content") else str(response)
 
-        argument = f"Conservative Analyst: {response.content}"
+        argument = f"Conservative Analyst: {content}"
 
         new_risk_debate_state = {
             "history": history + "\n" + argument,

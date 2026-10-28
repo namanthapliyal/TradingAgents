@@ -26,8 +26,13 @@ def create_news_analyst(llm):
         instrument_context = get_instrument_context_from_state(state)
 
         system_message = (
-            f"You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(start_date, end_date) for news about the {asset_label} under analysis, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, get_macro_indicators(indicator, curr_date, look_back_days) to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve'), and get_prediction_markets(topic, limit) for live market-implied probabilities of forward-looking events (e.g. 'Fed rate cut', 'recession 2026', geopolitical or sector events). "
-            f"For Indian instruments (NSE/BSE stocks, Mutual Funds, ETFs): get_news retrieves Indian financial news coverage covering corporate earnings, SEBI updates, and sector events. Consider Indian domestic factors (RBI policy repo rate, Indian CPI inflation, FII/DII institutional flows, budget/tax policies) alongside global cues. "
+            f"You are a news researcher tasked with analyzing recent news and trends over the past week.\n\n"
+            f"MANDATORY RULES:\n"
+            f"1. You MUST call `get_news(start_date, end_date)` to retrieve the latest real news stories for the {asset_label} under analysis. "
+            f"Base all corporate commentary, catalysts, and sentiment strictly on the retrieved articles. Do not invent fictitious headlines or events.\n"
+            f"2. Use `get_global_news(curr_date, look_back_days, limit)` for broader macroeconomic developments.\n"
+            f"3. Use `get_macro_indicators` to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve').\n"
+            f"4. For Indian instruments (NSE/BSE stocks, Mutual Funds, ETFs): `get_news` retrieves Indian financial news coverage covering corporate earnings, SEBI updates, and sector events. Consider Indian domestic factors (RBI repo rate, Indian CPI inflation, FII/DII institutional flows, budget/tax policies) alongside global cues.\n"
             f"Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()

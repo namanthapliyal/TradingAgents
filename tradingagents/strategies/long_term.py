@@ -4,10 +4,19 @@ import pandas as pd
 import numpy as np
 
 from tradingagents.wallet.manager import WalletManager
-from tradingagents.dataflows.vendors.kotak_neo.trading import place_order as kotak_neo_place_order, get_live_price as kotak_neo_get_live_price
-from tradingagents.dataflows.vendors.screener_in.fundamentals import get_fundamentals as screener_get_fundamentals
-from tradingagents.dataflows.vendors.moneycontrol.fundamentals import get_fundamentals as moneycontrol_get_fundamentals
-from tradingagents.dataflows.vendors.tradingview.technical_indicators import get_technical_indicators
+from tradingagents.dataflows.vendors.kotak_neo.trading import (
+    place_order as kotak_neo_place_order,
+    get_live_price as kotak_neo_get_live_price,
+)
+from tradingagents.dataflows.vendors.screener_in.fundamentals import (
+    get_fundamentals as screener_get_fundamentals,
+)
+from tradingagents.dataflows.vendors.moneycontrol.fundamentals import (
+    get_fundamentals as moneycontrol_get_fundamentals,
+)
+from tradingagents.dataflows.vendors.tradingview.technical_indicators import (
+    get_technical_indicators,
+)
 from tradingagents.dataflows.errors import VendorUnavailableError
 
 
@@ -20,9 +29,9 @@ class LongTermInvestmentStrategy:
 
         # Fundamental analysis thresholds
         self.pe_ratio_threshold = 25  # Maximum acceptable P/E ratio
-        self.pb_ratio_threshold = 5   # Maximum acceptable P/B ratio
+        self.pb_ratio_threshold = 5  # Maximum acceptable P/B ratio
         self.debt_to_equity_threshold = 0.5  # Maximum acceptable debt-to-equity
-        self.roe_threshold = 0.15     # Minimum acceptable ROE (15%)
+        self.roe_threshold = 0.15  # Minimum acceptable ROE (15%)
         self.current_ratio_threshold = 1.5  # Minimum acceptable current ratio
         self.dividend_yield_threshold = 0.02  # Minimum acceptable dividend yield (2%)
 
@@ -33,7 +42,7 @@ class LongTermInvestmentStrategy:
 
         # Diversification limits
         self.max_sector_allocation = 0.25  # Maximum 25% in any sector
-        self.max_stock_allocation = 0.10   # Maximum 10% in any single stock
+        self.max_stock_allocation = 0.10  # Maximum 10% in any single stock
 
     def analyze_stock_for_long_term(self, ticker: str) -> Dict[str, any]:
         """Analyze a stock for long-term investment potential.
@@ -63,7 +72,11 @@ class LongTermInvestmentStrategy:
             fundamentals = fundamentals_screener or fundamentals_moneycontrol or {}
 
             if not fundamentals:
-                return {"signal": "HOLD", "confidence": 0, "reason": "Unable to get fundamental data"}
+                return {
+                    "signal": "HOLD",
+                    "confidence": 0,
+                    "reason": "Unable to get fundamental data",
+                }
 
             # Get live price
             live_price = kotak_neo_get_live_price(ticker)
@@ -72,17 +85,21 @@ class LongTermInvestmentStrategy:
 
             # Get technical indicators for timing
             indicators = get_technical_indicators(
-                ticker=ticker,
-                indicators=["RSI", "MOVING_AVERAGES"]
+                ticker=ticker, indicators=["RSI", "MOVING_AVERAGES"]
             )
 
             # Extract fundamental metrics
             pe_ratio = fundamentals.get("pe_ratio", fundamentals.get("pe", 0))
             pb_ratio = fundamentals.get("pb_ratio", fundamentals.get("pb", 0))
-            debt_to_equity = fundamentals.get("debt_to_equity", fundamentals.get("debt_equity_ratio", 0))
+            debt_to_equity = fundamentals.get(
+                "debt_to_equity", fundamentals.get("debt_equity_ratio", 0)
+            )
             roe = fundamentals.get("roe", fundamentals.get("return_on_equity", 0))
             current_ratio = fundamentals.get("current_ratio", 0)
-            dividend_yield = fundamentals.get("dividend_yield", fundamentals.get("dividend_yield_percent", 0)) / 100  # Convert percentage to decimal
+            dividend_yield = (
+                fundamentals.get("dividend_yield", fundamentals.get("dividend_yield_percent", 0))
+                / 100
+            )  # Convert percentage to decimal
             market_cap = fundamentals.get("market_cap", 0)
             book_value = fundamentals.get("book_value_per_share", 0)
 
@@ -138,13 +155,13 @@ class LongTermInvestmentStrategy:
             if roe >= 0:
                 if roe > 0.25:  # 25%+ ROE
                     fundamental_score += 2  # Excellent profitability
-                    reasons.append(f"Excellent ROE ({roe*100:.1f}%)")
+                    reasons.append(f"Excellent ROE ({roe * 100:.1f}%)")
                 elif roe > self.roe_threshold:
                     fundamental_score += 1  # Good profitability
-                    reasons.append(f"Good ROE ({roe*100:.1f}%)")
+                    reasons.append(f"Good ROE ({roe * 100:.1f}%)")
                 else:
                     fundamental_score -= 1  # Poor profitability
-                    reasons.append(f"Low ROE ({roe*100:.1f}%)")
+                    reasons.append(f"Low ROE ({roe * 100:.1f}%)")
 
             # Current Ratio
             if current_ratio > 0:
@@ -162,10 +179,10 @@ class LongTermInvestmentStrategy:
             if dividend_yield >= 0:
                 if dividend_yield > 0.05:  # 5%+ dividend yield
                     fundamental_score += 2  # High dividend
-                    reasons.append(f"High dividend yield ({dividend_yield*100:.1f}%)")
+                    reasons.append(f"High dividend yield ({dividend_yield * 100:.1f}%)")
                 elif dividend_yield >= self.dividend_yield_threshold:
                     fundamental_score += 1  # Reasonable dividend
-                    reasons.append(f"Reasonable dividend yield ({dividend_yield*100:.1f}%)")
+                    reasons.append(f"Reasonable dividend yield ({dividend_yield * 100:.1f}%)")
                 # No penalty for low/no dividend - growth stocks may not pay dividends
 
             # Technical analysis for entry timing
@@ -216,7 +233,11 @@ class LongTermInvestmentStrategy:
                 # Simplified: Intrinsic Value = Book Value * (1 + ROE)^10 * 0.5 (conservative)
                 growth_factor = (1 + roe) ** 10
                 intrinsic_value = book_value * growth_factor * 0.5
-            elif pe_ratio > 0 and earnings_per_share := fundamentals.get("eps", fundamentals.get("earnings_per_share", 0)):
+            elif pe_ratio > 0 and (
+                earnings_per_share := fundamentals.get(
+                    "eps", fundamentals.get("earnings_per_share", 0)
+                )
+            ):
                 # Using P/E approach: Intrinsic Value = EPS * Fair P/E
                 fair_pe = min(18, self.pe_ratio_threshold)  # Conservative fair P/E
                 intrinsic_value = earnings_per_share * fair_pe
@@ -238,7 +259,7 @@ class LongTermInvestmentStrategy:
                 "fundamentals": fundamentals,
                 "indicators": indicators,
                 "reasons": reasons,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
         except VendorUnavailableError as e:
@@ -246,7 +267,9 @@ class LongTermInvestmentStrategy:
         except Exception as e:
             return {"signal": "HOLD", "confidence": 0, "reason": f"Analysis error: {str(e)}"}
 
-    def execute_long_term_investment(self, ticker: str, capital_allocation: float = 0.05) -> Dict[str, any]:
+    def execute_long_term_investment(
+        self, ticker: str, capital_allocation: float = 0.05
+    ) -> Dict[str, any]:
         """Execute a long-term investment based on strategy analysis.
 
         Args:
@@ -264,7 +287,7 @@ class LongTermInvestmentStrategy:
             return {
                 "success": False,
                 "reason": f"No clear buy signal: {analysis.get('reason', 'Insufficient confidence')}",
-                "analysis": analysis
+                "analysis": analysis,
             }
 
         # Check diversification limits
@@ -283,8 +306,8 @@ class LongTermInvestmentStrategy:
         if current_allocation >= self.max_stock_allocation:
             return {
                 "success": False,
-                "reason": f"Already at maximum allocation for {ticker} ({current_allocation*100:.1f}%)",
-                "analysis": analysis
+                "reason": f"Already at maximum allocation for {ticker} ({current_allocation * 100:.1f}%)",
+                "analysis": analysis,
             }
 
         # Calculate position size
@@ -300,7 +323,7 @@ class LongTermInvestmentStrategy:
             return {
                 "success": False,
                 "reason": f"Maximum allocation limit reached for {ticker}",
-                "analysis": analysis
+                "analysis": analysis,
             }
 
         investment_capital = min(investment_capital, additional_allowed)
@@ -309,7 +332,7 @@ class LongTermInvestmentStrategy:
             return {
                 "success": False,
                 "reason": "Insufficient capital for meaningful investment",
-                "analysis": analysis
+                "analysis": analysis,
             }
 
         # Calculate quantity
@@ -330,7 +353,7 @@ class LongTermInvestmentStrategy:
                 quantity=quantity,
                 order_type="MARKET",
                 price=None,
-                product_type="CNC"  # Delivery order for long-term
+                product_type="CNC",  # Delivery order for long-term
             )
 
             # Record the investment
@@ -344,7 +367,7 @@ class LongTermInvestmentStrategy:
                 "timestamp": datetime.now().isoformat(),
                 "strategy": self.name,
                 "analysis": analysis,
-                "investment_horizon": "long_term"  # 1+ years
+                "investment_horizon": "long_term",  # 1+ years
             }
 
             self.wallet_manager.transaction_history.append(investment_record)
@@ -353,13 +376,21 @@ class LongTermInvestmentStrategy:
                 "success": True,
                 "investment_record": investment_record,
                 "order_result": order_result,
-                "analysis": analysis
+                "analysis": analysis,
             }
 
         except VendorUnavailableError as e:
-            return {"success": False, "reason": f"Broker unavailable: {str(e)}", "analysis": analysis}
+            return {
+                "success": False,
+                "reason": f"Broker unavailable: {str(e)}",
+                "analysis": analysis,
+            }
         except Exception as e:
-            return {"success": False, "reason": f"Order execution failed: {str(e)}", "analysis": analysis}
+            return {
+                "success": False,
+                "reason": f"Order execution failed: {str(e)}",
+                "analysis": analysis,
+            }
 
     def evaluate_existing_positions(self) -> Dict[str, any]:
         """Evaluate existing positions for potential profit booking or stop loss."""
@@ -403,23 +434,25 @@ class LongTermInvestmentStrategy:
                     action = "HOLD"
                     reason = "No action required"
 
-                evaluations.append({
-                    "ticker": ticker,
-                    "current_price": current_price,
-                    "average_price": avg_price,
-                    "quantity": position["quantity"],
-                    "market_value": position["market_value"],
-                    "unrealized_pnl": position["unrealized_pnl"],
-                    "unrealized_pnl_percent": pnl_percent,
-                    "action": action,
-                    "reason": reason,
-                    "analysis": analysis
-                })
+                evaluations.append(
+                    {
+                        "ticker": ticker,
+                        "current_price": current_price,
+                        "average_price": avg_price,
+                        "quantity": position["quantity"],
+                        "market_value": position["market_value"],
+                        "unrealized_pnl": position["unrealized_pnl"],
+                        "unrealized_pnl_percent": pnl_percent,
+                        "action": action,
+                        "reason": reason,
+                        "analysis": analysis,
+                    }
+                )
 
             return {
                 "success": True,
                 "evaluations": evaluations,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:

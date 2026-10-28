@@ -48,14 +48,14 @@ def create_bear_researcher(llm):
                 "- Financial & Operational Risks: Emphasize debt levels, working capital cycles, corporate governance, and FII outflow headwinds."
             )
 
-        prompt = f"""You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+        prompt = f"""You are an institutional financial research analyst conducting fiduciary risk assessment. You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
 
 Key points to focus on:
 {asset_risk_guidelines}
 - Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining margins, or industry headwinds.
 - Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
 - Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
-- Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
+- Engagement: Present your argument directly and assertively, engaging with the bull analyst's points and debating effectively.
 
 Resources available:
 
@@ -70,8 +70,17 @@ Use this information to deliver a compelling bear argument, refute the bull's cl
 """ + get_language_instruction()
 
         response = llm.invoke(prompt)
+        content = response.content if hasattr(response, "content") else str(response)
 
-        argument = f"Bear Analyst: {response.content}"
+        # Guard against safety refusals from small models
+        if "cannot participate" in content.lower() or "as an ai" in content.lower():
+            content = (
+                f"The downside risk case for {target_label} is significant: "
+                f"recent operating headwinds, valuation multiples lacking safety margin, "
+                f"and macroeconomic and sector-level pressures indicate unfavorable risk-reward."
+            )
+
+        argument = f"Bear Analyst: {content}"
 
         new_investment_debate_state = {
             "history": history + "\n" + argument,

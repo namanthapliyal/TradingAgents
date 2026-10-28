@@ -164,3 +164,55 @@ class TestInstrumentIdentityAndContext:
         ctx = build_instrument_context("NIFTYBEES", "etf", identity)
         assert "Indian exchange traded fund (ETF)" in ctx
         assert "get_etf_info" in ctx
+
+
+class TestTurnToolCallExtraction:
+    def test_extract_direct_json_tool_call(self):
+        from tradingagents.agents.analysts.turn import _extract_text_tool_calls
+
+        class DummyTool:
+            name = "get_fundamentals"
+
+        raw = '{"name": "get_fundamentals", "arguments": {"curr_date": "2026-10-28"}}'
+        calls = _extract_text_tool_calls(raw, [DummyTool])
+        assert len(calls) == 1
+        assert calls[0]["name"] == "get_fundamentals"
+        assert calls[0]["args"]["curr_date"] == "2026-10-28"
+
+    def test_extract_markdown_fence_tool_call(self):
+        from tradingagents.agents.analysts.turn import _extract_text_tool_calls
+
+        class DummyTool:
+            name = "get_stock_data"
+
+        raw = '```json\n{"name": "get_stock_data", "arguments": {"start_date": "2026-07-01", "end_date": "2026-10-28"}}\n```'
+        calls = _extract_text_tool_calls(raw, [DummyTool])
+        assert len(calls) == 1
+        assert calls[0]["name"] == "get_stock_data"
+        assert calls[0]["args"]["start_date"] == "2026-07-01"
+
+    def test_ignore_plain_prose_report(self):
+        from tradingagents.agents.analysts.turn import _extract_text_tool_calls
+
+        class DummyTool:
+            name = "get_fundamentals"
+
+        prose = (
+            "### Company Fundamentals\nVedanta Power has demonstrated consistent growth in EBITDA."
+        )
+        calls = _extract_text_tool_calls(prose, [DummyTool])
+        assert len(calls) == 0
+
+
+class TestScreenerSignatures:
+    def test_statement_functions_accept_freq_arg(self):
+        from tradingagents.dataflows.vendors.screener_in import fundamentals
+
+        with patch.object(fundamentals, "get_fundamentals_dict", return_value={"ticker": "TEST"}):
+            bs = fundamentals.get_balance_sheet("TEST", "annual", "2026-10-28")
+            cf = fundamentals.get_cashflow("TEST", "quarterly", "2026-10-28")
+            inc = fundamentals.get_income_statement("TEST", "annual", "2026-10-28")
+
+            assert "Balance Sheet Summary (annual)" in bs
+            assert "Cash Flow Summary (quarterly)" in cf
+            assert "Income Statement Summary (annual)" in inc

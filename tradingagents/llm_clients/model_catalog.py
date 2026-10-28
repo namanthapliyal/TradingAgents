@@ -117,7 +117,10 @@ MODEL_OPTIONS: ProviderModeOptions = {
         ],
         "deep": [
             ("Claude Opus 5.5 - Frontier agentic and enterprise work", "claude-opus-5-5"),
-            ("Claude Fable 5.1 - Most capable, demanding long-horizon reasoning", "claude-fable-5-1"),
+            (
+                "Claude Fable 5.1 - Most capable, demanding long-horizon reasoning",
+                "claude-fable-5-1",
+            ),
             ("Claude Sonnet 5 - Near-frontier intelligence at Sonnet cost", "claude-sonnet-5"),
             ("Custom model ID", "custom"),
         ],
@@ -131,7 +134,10 @@ MODEL_OPTIONS: ProviderModeOptions = {
         ],
         "deep": [
             ("Gemini 3.8 Flash - Most capable Flash, 1M context", "gemini-3.8-flash"),
-            ("Gemini 3.1 Pro - Reasoning-first, complex workflows (preview)", "gemini-3.1-pro-preview"),
+            (
+                "Gemini 3.1 Pro - Reasoning-first, complex workflows (preview)",
+                "gemini-3.1-pro-preview",
+            ),
             ("Gemini 3.5 Flash - Previous Flash, strong agentic + coding", "gemini-3.5-flash"),
             ("Custom model ID", "custom"),
         ],
@@ -203,6 +209,23 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("Custom model ID", "custom"),
         ],
     },
+    # Google Colab remote hosted Ollama instance (Cloudflare tunnel + FastAPI proxy)
+    "colab": {
+        "quick": [
+            ("Qwen3 8B - Fast worker (Colab default)", "qwen3:8b"),
+            ("Qwen 2.5 Coder 7B - Code & reasoning", "qwen2.5-coder:7b"),
+            ("DeepSeek R1 14B - Deep reasoning", "deepseek-r1:14b"),
+            ("Qwen 2.5 Coder 1.5B - Ultra-fast (<1GB)", "qwen2.5-coder:1.5b"),
+            ("Custom model ID", "custom"),
+        ],
+        "deep": [
+            ("DeepSeek R1 14B - Deep reasoning (Colab default)", "deepseek-r1:14b"),
+            ("Qwen 2.5 Coder 7B - Deep reasoning & worker", "qwen2.5-coder:7b"),
+            ("Qwen3 8B - Fast alternative", "qwen3:8b"),
+            ("Qwen 2.5 Coder 32B - Heavy reasoning", "qwen2.5-coder:32b"),
+            ("Custom model ID", "custom"),
+        ],
+    },
     # Generic OpenAI-compatible endpoint: the model is whatever the user's
     # server serves, so only "Custom model ID" is offered.
     "openai_compatible": _CUSTOM_ONLY,
@@ -238,8 +261,11 @@ def get_model_options(provider: str, mode: str) -> list[ModelOption]:
 # validation so a config naming one runs without an unknown-model warning.
 LEGACY_MODELS: dict[str, list[str]] = {
     "openai": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol"],
-    "xai": ["grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning",
-            "grok-4.20-multi-agent-0309"],
+    "xai": [
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-0309-non-reasoning",
+        "grok-4.20-multi-agent-0309",
+    ],
     "deepseek": ["deepseek-v4-flash"],
     "qwen": ["qwen3.7-max", "qwen3.7-plus", "qwen3.6-max", "qwen3.6-plus"],
     "anthropic": ["claude-opus-5", "claude-fable-5", "claude-opus-4-8", "claude-opus-4-7"],
@@ -250,11 +276,7 @@ def get_known_models() -> dict[str, list[str]]:
     """Build known model names from the shared CLI catalog plus legacy IDs."""
     return {
         provider: sorted(
-            {
-                value
-                for options in mode_options.values()
-                for _, value in options
-            }
+            {value for options in mode_options.values() for _, value in options}
             | set(LEGACY_MODELS.get(provider, []))
         )
         for provider, mode_options in MODEL_OPTIONS.items()

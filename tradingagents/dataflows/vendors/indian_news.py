@@ -14,6 +14,8 @@ from typing import Any
 
 import requests
 
+from tradingagents.dataflows.errors import VendorUnavailableError
+
 logger = logging.getLogger(__name__)
 
 # Key financial sentiment keywords for Indian equity context
@@ -163,6 +165,7 @@ def fetch_indian_news(
 
     except Exception as exc:
         logger.error("Failed to fetch Indian news for %s: %s", clean_ticker, exc)
+        raise VendorUnavailableError(f"Indian news fetch failed: {exc}") from exc
 
     return articles
 

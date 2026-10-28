@@ -7,7 +7,11 @@ import yfinance as yf
 from dateutil.relativedelta import relativedelta
 from stockstats import wrap
 
-from tradingagents.dataflows.errors import NoMarketDataError, VendorError
+from tradingagents.dataflows.errors import (
+    NoMarketDataError,
+    VendorError,
+    VendorUnavailableError,
+)
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
 from tradingagents.dataflows.vendors.yahoo.ohlcv import _assert_ohlcv_not_stale, load_ohlcv
@@ -29,13 +33,56 @@ def get_YFin_data_online(
 
     if canonical.isdigit() and len(canonical) >= 5:
         from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_stock_data_csv
+
         return get_mutual_fund_stock_data_csv(canonical, start_date, end_date)
 
     # yfinance treats ``end`` as EXCLUSIVE, so it would drop the requested
     # end_date row (and the current day when end_date is today). Request one day
     # past end_date so the requested range is actually inclusive (#986/#987).
     end_inclusive = (end_dt + relativedelta(days=1)).strftime("%Y-%m-%d")
-    data = yf_retry(lambda: yf.Ticker(canonical).history(start=start_date, end=end_inclusive))
+    try:
+        data = yf_retry(lambda: yf.Ticker(canonical).history(start=start_date, end=end_inclusive))
+    except VendorUnavailableError as exc:
+        if (
+            "YFTzMissingError" in str(exc)
+            and "." not in canonical
+            and not canonical.startswith("^")
+        ):
+            data = None
+            for suffix in [".NS", ".BO"]:
+                try:
+                    alt_cand = f"{canonical}{suffix}"
+                    alt_data = yf_retry(
+                        lambda cand=alt_cand: yf.Ticker(cand).history(
+                            start=start_date, end=end_inclusive
+                        )
+                    )
+                    if alt_data is not None and not alt_data.empty:
+                        data = alt_data
+                        canonical = alt_cand
+                        break
+                except Exception:
+                    pass
+            if data is None:
+                raise
+        else:
+            raise
+    # Fall back to Indian exchange suffixes (.NS, .BO) for bare tickers with no data on Yahoo US
+    if (data is None or data.empty) and "." not in canonical and not canonical.startswith("^"):
+        for suffix in [".NS", ".BO"]:
+            try:
+                alt_cand = f"{canonical}{suffix}"
+                alt_data = yf_retry(
+                    lambda cand=alt_cand: yf.Ticker(cand).history(
+                        start=start_date, end=end_inclusive
+                    )
+                )
+                if alt_data is not None and not alt_data.empty:
+                    data = alt_data
+                    canonical = alt_cand
+                    break
+            except Exception:
+                pass
 
     # Empty result means the symbol is unknown/delisted. Raise a typed error
     # instead of returning prose: the routing layer turns it into a single
@@ -72,9 +119,7 @@ def get_YFin_data_online(
 def get_stock_stats_indicators_window(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    as_of_date: Annotated[
-        str, "The current trading date you are trading on, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
     look_back_days: Annotated[int, "how many days to look back"],
 ) -> str:
 
@@ -169,7 +214,7 @@ def get_stock_stats_indicators_window(
         date_values = []
 
         while current_dt >= before:
-            date_str = current_dt.strftime('%Y-%m-%d')
+            date_str = current_dt.strftime("%Y-%m-%d")
 
             # Look up the indicator value for this date
             if date_str in indicator_data:
@@ -211,7 +256,7 @@ def get_stock_stats_indicators_window(
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],
-    as_of_date: Annotated[str, "current date for reference"]
+    as_of_date: Annotated[str, "current date for reference"],
 ) -> dict:
     """
     Optimized bulk calculation of stock stats indicators.
@@ -242,9 +287,7 @@ def _get_stock_stats_bulk(
 def get_stockstats_indicator(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    as_of_date: Annotated[
-        str, "The current trading date you are trading on, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
 ) -> str:
 
     as_of_dt = datetime.strptime(as_of_date, "%Y-%m-%d")
@@ -272,8 +315,51 @@ def get_stockstats_indicator(
 def get_closes(symbol: str, start_date: str, end_date: str) -> pd.Series:
     """Daily closes from ``start_date`` up to, not including, ``end_date``."""
     canonical = normalize_symbol(symbol)
-    history = yf_retry(lambda: yf.Ticker(canonical).history(start=start_date, end=end_date))
-    return history["Close"] if history is not None and "Close" in history else pd.Series(dtype=float)
+    try:
+        history = yf_retry(lambda: yf.Ticker(canonical).history(start=start_date, end=end_date))
+    except VendorUnavailableError as exc:
+        if (
+            "YFTzMissingError" in str(exc)
+            and "." not in canonical
+            and not canonical.startswith("^")
+        ):
+            history = None
+            for suffix in [".NS", ".BO"]:
+                try:
+                    alt_cand = f"{canonical}{suffix}"
+                    alt_data = yf_retry(
+                        lambda cand=alt_cand: yf.Ticker(cand).history(
+                            start=start_date, end=end_date
+                        )
+                    )
+                    if alt_data is not None and not alt_data.empty:
+                        history = alt_data
+                        break
+                except Exception:
+                    pass
+            if history is None:
+                raise
+        else:
+            raise
+    if (
+        (history is None or history.empty)
+        and "." not in canonical
+        and not canonical.startswith("^")
+    ):
+        for suffix in [".NS", ".BO"]:
+            try:
+                alt_cand = f"{canonical}{suffix}"
+                alt_data = yf_retry(
+                    lambda cand=alt_cand: yf.Ticker(cand).history(start=start_date, end=end_date)
+                )
+                if alt_data is not None and not alt_data.empty:
+                    history = alt_data
+                    break
+            except Exception:
+                pass
+    return (
+        history["Close"] if history is not None and "Close" in history else pd.Series(dtype=float)
+    )
 
 
 def get_stock_stats(
@@ -281,9 +367,7 @@ def get_stock_stats(
     indicator: Annotated[
         str, "quantitative indicators based off of the stock data for the company"
     ],
-    as_of_date: Annotated[
-        str, "curr date for retrieving stock price data, YYYY-mm-dd"
-    ],
+    as_of_date: Annotated[str, "curr date for retrieving stock price data, YYYY-mm-dd"],
 ):
     data = load_ohlcv(symbol, as_of_date)
     df = wrap(data)

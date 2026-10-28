@@ -399,7 +399,12 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
     (convention from the broader Ollama ecosystem); falls back to the
     localhost default when unset.
     """
-    ollama_url = os.environ.get("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
+    ollama_url = (
+        os.environ.get("OLLAMA_BASE_URL")
+        or os.environ.get("LOCAL_LLM_URL")
+        or "http://localhost:11434/v1"
+    )
+    colab_url = os.environ.get("COLAB_LLM_URL")
     return [
         ("OpenAI", "openai", "https://api.openai.com/v1"),
         ("Google", "google", None),
@@ -418,7 +423,8 @@ def _llm_provider_table() -> list[tuple[str, str, str | None]]:
         ("NVIDIA NIM", "nvidia", "https://integrate.api.nvidia.com/v1"),
         ("Azure OpenAI", "azure", None),
         ("Amazon Bedrock", "bedrock", None),
-        ("Ollama", "ollama", ollama_url),
+        ("Ollama (Local)", "ollama", ollama_url),
+        ("Google Colab (Remote Cloudflare Tunnel)", "colab", colab_url),
         ("OpenAI-compatible (vLLM, LM Studio, llama.cpp, custom relay)", "openai_compatible", None),
     ]
 
@@ -460,6 +466,25 @@ def prompt_openai_compatible_url(default=None) -> str:
         console.print("\n[red]No endpoint URL provided. Exiting...[/red]")
         exit(1)
     return url.strip()
+
+
+def prompt_colab_url(default=None) -> str:
+    """Prompt for Google Colab Cloudflare Tunnel endpoint base URL."""
+    url = questionary.text(
+        "Enter your Google Colab Cloudflare tunnel URL (e.g. https://xxxx.trycloudflare.com):",
+        default=default or os.environ.get("COLAB_LLM_URL", ""),
+        validate=lambda x: (
+            x.strip().startswith(("http://", "https://"))
+            or "Enter a URL starting with http:// or https://"
+        ),
+    ).ask()
+    if not url:
+        console.print("\n[red]No Colab endpoint URL provided. Exiting...[/red]")
+        exit(1)
+    clean = url.strip().rstrip("/")
+    if not clean.endswith("/v1"):
+        clean = f"{clean}/v1"
+    return clean
 
 
 def select_llm_provider(default=None) -> tuple[str, str | None]:
@@ -674,6 +699,19 @@ def confirm_ollama_endpoint(url: str) -> None:
             f"[yellow]Note: {url!r} doesn't include port 11434. "
             f"Make sure your remote ollama-serve listens on the port "
             f"shown above.[/yellow]"
+        )
+
+
+def confirm_colab_endpoint(url: str) -> None:
+    """Show the resolved Google Colab Cloudflare endpoint after provider selection."""
+    from_env = os.environ.get("COLAB_LLM_URL")
+    normalized_env = from_env.strip().rstrip("/") if from_env else ""
+    normalized_url = url.strip().rstrip("/").removesuffix("/v1")
+    origin = " (from COLAB_LLM_URL)" if normalized_env and normalized_env == normalized_url else ""
+    console.print(f"[green]✓ Using Google Colab hosted LLM at {url}{origin}[/green]")
+    if not url.startswith(("http://", "https://")):
+        console.print(
+            f"[yellow]Note: {url!r} is missing a scheme. Colab Cloudflare URL typically starts with https://.[/yellow]"
         )
 
 

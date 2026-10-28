@@ -185,7 +185,117 @@ For Azure OpenAI, copy `.env.enterprise.example` to `.env.enterprise` and fill i
 
 For AWS Bedrock, install the extra with `pip install ".[bedrock]"`, set `llm_provider: "bedrock"`, configure AWS credentials (environment variables, `~/.aws/credentials`, or an IAM role) and `AWS_DEFAULT_REGION`, and use a Bedrock model ID, e.g. `us.anthropic.claude-opus-5-5`.
 
-For local models, configure Ollama with `llm_provider: "ollama"`. The default endpoint is `http://localhost:11434/v1`; set `OLLAMA_BASE_URL` to point at a remote `ollama-serve`. Pull models with `ollama pull <name>`, and pick "Custom model ID" in the CLI for any model not listed by default.
+### Local & Remote Hosted LLMs (Ollama & Google Colab)
+
+TradingAgents allows running fully self-hosted, private LLM agents without cloud API billing. You can run locally on your own GPU/CPU or offload inference to a free **Google Colab** instance (T4 GPU with 16 GB VRAM) exposed securely via Cloudflare Tunnel.
+
+#### 1. Self-Hosted Local Ollama (Local GPU / CPU)
+
+Ideal if you have local GPU/CPU resources. Recommended model pairing:
+- **Quick Think Model:** `qwen2.5-coder:1.5b` (under 1 GB, fits directly in GPU VRAM for instantaneous analyst/tool operations)
+- **Deep Think Model:** `qwen2.5-coder:7b` (4.7 GB, fast reasoning for debate managers and portfolio sizing)
+
+**Setup:**
+```bash
+ollama pull qwen2.5-coder:1.5b
+ollama pull qwen2.5-coder:7b
+```
+
+**Configure `.env`:**
+```env
+TRADINGAGENTS_LLM_HOST=local
+OLLAMA_BASE_URL=http://localhost:11434/v1
+LOCAL_QUICK_THINK_LLM=qwen2.5-coder:1.5b
+LOCAL_DEEP_THINK_LLM=qwen2.5-coder:7b
+```
+
+**Run Commands:**
+```bash
+# Explicit flag to use local Ollama
+tradingagents run --ticker VEDPOWER --local
+
+# Alternative alias:
+tradingagents run --ticker NVDA --self-hosted
+```
+
+#### 2. Google Colab Hosted LLM (Cloudflare Tunnel + FastAPI Auth Proxy)
+
+Ideal for running high-capacity models (e.g. `deepseek-r1:14b` and `qwen3:8b`) on Google Colab's free 16 GB T4 GPU, completely offloading your local machine.
+
+**Colab Host Setup Script:**
+Run this in a Google Colab notebook cell (T4 GPU runtime):
+```python
+# 1. Install Ollama, Cloudflare Tunnel & Proxy dependencies
+!curl -fsSL https://ollama.com/install.sh | sh > /dev/null 2>&1
+!wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+!dpkg -i cloudflared-linux-amd64.deb > /dev/null 2>&1
+!pip install -q fastapi uvicorn httpx
+
+import os, time, subprocess, threading, re, httpx
+from fastapi import FastAPI, Request, Response, HTTPException, status
+import uvicorn
+
+# 2. Start Ollama with single-model memory safeguard
+env = os.environ.copy()
+env["OLLAMA_HOST"] = "127.0.0.1:11434"
+env["OLLAMA_MAX_LOADED_MODELS"] = "1"
+env["OLLAMA_NUM_PARALLEL"] = "1"
+subprocess.Popen(["ollama", "serve"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+time.sleep(5)
+
+# Pull models on Colab
+subprocess.run(["ollama", "pull", "deepseek-r1:14b"], check=True)
+subprocess.run(["ollama", "pull", "qwen3:8b"], check=True)
+
+# 3. Start FastAPI Bearer Auth Proxy (Port 8000)
+API_SECRET_TOKEN = "sk-colab-secret-key-12345"  # Match this in your local .env
+app = FastAPI()
+client = httpx.AsyncClient(base_url="http://127.0.0.1:11434", timeout=600.0)
+
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"])
+async def proxy(request: Request, path: str):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
+    if auth_header.split(" ", 1)[1].strip() != API_SECRET_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid API Secret Token.")
+    url = httpx.URL(path=f"/{path}", query=request.url.query.encode("utf-8"))
+    req = client.build_request(request.method, url, headers=dict(request.headers), content=await request.body())
+    res = await client.send(req, stream=True)
+    return Response(content=await res.aread(), status_code=res.status_code, headers=dict(res.headers))
+
+threading.Thread(target=uvicorn.run, kwargs={"app": app, "host": "127.0.0.1", "port": 8000, "log_level": "warning"}, daemon=True).start()
+time.sleep(2)
+
+# 4. Expose via Cloudflare Tunnel
+tunnel = subprocess.Popen(["cloudflared", "tunnel", "--url", "http://127.0.0.1:8000"], stderr=subprocess.PIPE, text=True)
+for line in tunnel.stderr:
+    match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+    if match:
+        print(f"\n✅ SECURE OLLAMA ENDPOINT IS LIVE!\n🌐 Base URL: {match.group(0)}\n🔑 API Key:  {API_SECRET_TOKEN}\n")
+        break
+```
+
+**Configure `.env` locally:**
+```env
+TRADINGAGENTS_LLM_HOST=colab
+COLAB_LLM_URL=https://your-tunnel-subdomain.trycloudflare.com
+COLAB_LLM_API_KEY=sk-colab-secret-key-12345
+COLAB_QUICK_THINK_LLM=qwen3:8b
+COLAB_DEEP_THINK_LLM=deepseek-r1:14b
+```
+
+**Run Commands:**
+```bash
+# Explicit flag to use Google Colab hosted LLM
+tradingagents run --ticker VEDPOWER --colab
+
+# Analyze Indian Mutual Funds or ETFs with Colab LLM
+tradingagents run --ticker 122639 --colab
+tradingagents run --ticker NIFTYBEES --colab
+```
+
+---
 
 For any other OpenAI-compatible server (vLLM, LM Studio, llama.cpp, or a custom relay), use `llm_provider: "openai_compatible"` and set the endpoint via `backend_url` (or `TRADINGAGENTS_LLM_BACKEND_URL`), e.g. `http://localhost:8000/v1` for vLLM or `http://localhost:1234/v1` for LM Studio. The model is whatever your server serves. No key is needed for local servers; set `OPENAI_COMPATIBLE_API_KEY` when the endpoint requires one.
 
@@ -200,20 +310,50 @@ cp .env.example .env
 
 Launch the interactive CLI:
 ```bash
-tradingagents          # installed command
-python -m cli.main     # alternative: run directly from source
+tradingagents run           # installed command
+python -m cli.main run      # alternative: run directly from source
 ```
 You will see a screen where you can select your desired tickers, analysis date, LLM provider, research depth, and more. Your previous run's answers come back as the defaults, so pressing Enter accepts them. The `TRADINGAGENTS_*` variables in `.env` still skip their step entirely.
 
+#### Windows PowerShell Usage
+```powershell
+# Run with Google Colab LLM
+$env:PYTHONUTF8=1; .tradex\Scripts\python.exe -m cli.main run --ticker VEDPOWER --colab
+
+# Run with local Ollama
+$env:PYTHONUTF8=1; .tradex\Scripts\python.exe -m cli.main run --ticker VEDPOWER --local
+```
+
+#### Non-Interactive / Unattended Runs
 To run without questions, for a scheduled job or a script, answer the per-run steps with flags and the rest with `TRADINGAGENTS_*` variables:
 ```bash
-export TRADINGAGENTS_LLM_PROVIDER=openai TRADINGAGENTS_QUICK_THINK_LLM=gpt-6-luna TRADINGAGENTS_DEEP_THINK_LLM=gpt-6-sol
-export TRADINGAGENTS_OUTPUT_LANGUAGE=English TRADINGAGENTS_MAX_DEBATE_ROUNDS=1 TRADINGAGENTS_MAX_RISK_ROUNDS=1
-tradingagents --ticker NVDA --date 2026-09-23 --analysts market,news,fundamentals --save --no-show
+# Headless run using Google Colab
+tradingagents run --ticker VEDPOWER --colab --save --no-show
+
+# Headless run using local Ollama
+tradingagents run --ticker VEDPOWER --local --save --no-show
 ```
 Each flag skips only its own question. Run without a terminal, a missing answer stops the run before it starts and names the flag or variable to set.
 
 A saved report also includes `complete_report.html`, the report as one page with its sections listed beside the text, for reading in a browser, on a phone or in print. Answering the save question at the prompt also asks about the page and can open it in your browser; `--no-html` skips it, and so does `ta.save_reports(state, "NVDA", html=False)` from Python.
+
+### Command Reference Guide
+
+| Goal | Command | Description |
+| :--- | :--- | :--- |
+| **Interactive Wizard** | `tradingagents run` | Launches interactive UI for ticker, date, analysts, models. |
+| **Use Google Colab LLM** | `tradingagents run --ticker <TICKER> --colab` | Offloads inference to Colab GPU via Cloudflare tunnel. |
+| **Use Local Ollama** | `tradingagents run --ticker <TICKER> --local` | Routes to local Ollama daemon (`localhost:11434`). |
+| **Explicit Host Flag** | `tradingagents run --ticker <TICKER> --host colab` | Explicitly targets `colab` or `local` host mode. |
+| **Indian Equity (NSE/BSE)** | `tradingagents run --ticker VEDPOWER --colab` | Auto-routes through Screener.in, Moneycontrol & Yahoo fallback. |
+| **Indian Mutual Fund** | `tradingagents run --ticker 122639 --colab` | AMFI scheme evaluation (NAV, expense ratio, category). |
+| **ETF Analysis** | `tradingagents run --ticker NIFTYBEES --colab` | Real-time momentum, index tracking & volume checks. |
+| **Headless / Automated** | `tradingagents run --ticker NVDA --colab --save --no-show` | Generates markdown & HTML reports without terminal prompts. |
+| **Filtered Analysts** | `tradingagents run --ticker RELIANCE.NS --analysts market,news,fundamentals --colab` | Runs only specified analysts. |
+| **Portfolio-Aware Sizing** | `tradingagents run --ticker VEDPOWER --portfolio book.json --colab` | Sizes positions against actual holdings and free cash. |
+| **Checkpoint Resume** | `tradingagents run --ticker VEDPOWER --checkpoint --colab` | Resumes a crashed or interrupted run from last node. |
+| **Clear Checkpoints** | `tradingagents run --clear-checkpoints` | Deletes all saved checkpoint databases for a fresh run. |
+| **Backtesting Grid** | `tradingagents backtest NVDA,AAPL --start 2026-06-01 --end 2026-08-01 --every 7` | Backtests past decisions with point-in-time data fidelity. |
 
 ### Markets and tickers
 

@@ -28,16 +28,51 @@ def create_fundamentals_analyst(llm):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = get_instrument_context_from_state(state)
+        asset_type = state.get("asset_type", "stock")
+        ticker = state.get("company_of_interest", "")
+
+        # Select primary tool ordering based on instrument type
+        if asset_type in ("mutual_fund", "mf") or (ticker.isdigit() and len(ticker) >= 5):
+            ordered_tools = (
+                get_mutual_fund_info,
+                get_fundamentals,
+                get_balance_sheet,
+                get_cashflow,
+                get_income_statement,
+                get_insider_transactions,
+                get_etf_info,
+            )
+        elif asset_type == "etf":
+            ordered_tools = (
+                get_etf_info,
+                get_fundamentals,
+                get_balance_sheet,
+                get_cashflow,
+                get_income_statement,
+                get_insider_transactions,
+                get_mutual_fund_info,
+            )
+        else:
+            ordered_tools = TOOLS
 
         system_message = (
-            "You are a researcher tasked with analyzing fundamental information about an instrument (stock, mutual fund, or ETF)."
-            " Please write a comprehensive fundamental report to inform traders. Make sure to include as much detail as possible."
-            " Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
-            " Make sure to append a Markdown table at the end of the report to organize key metrics."
-            " Use the available tools based on the instrument type:"
-            " - For stocks: Use `get_fundamentals` for company overview (P/E, ROCE, EBITDA, Sales, Net Profit), `get_balance_sheet`, `get_cashflow`, `get_income_statement`, and `get_insider_transactions`."
-            " - For Indian Mutual Funds: Use `get_mutual_fund_info` to analyze AMFI NAV, trailing returns (1M, 6M, 1Y, 3Y, 5Y CAGR), scheme category, and AMC fund house."
-            " - For ETFs: Use `get_etf_info` to analyze the underlying benchmark index, market pricing, and trading volume."
+            "You are a professional fundamental research analyst tasked with analyzing the financial health, "
+            "valuation, and earnings quality of an instrument (stock, mutual fund, or ETF).\n\n"
+            "MANDATORY EXECUTION RULES:\n"
+            "1. GROUNDING IN TOOL DATA: You MUST call your data tools first (e.g. `get_fundamentals`). "
+            "Never invent, assume, or hallucinate financial figures, valuation multiples, or business activities. "
+            "Every metric in your report must be directly cited from the tool output.\n"
+            "2. INDIAN FINANCIAL SCALING & CURRENCY:\n"
+            "   - All absolute figures for Indian equities are denominated in **Indian Rupees (INR) Crores (₹ Cr)**.\n"
+            "   - 1 Crore (Cr) = 10,000,000 INR (10 Million INR = ₹1 Cr). 1 Lakh Crore = 100,000 Crore (₹1 Trillion).\n"
+            "   - Report sales, net profit, EBITDA, and market cap in **₹ Crore (Cr)** or **₹ Lakh Crore**. "
+            "DO NOT confuse Crores with millions or single rupees. For example, ₹191,059 Cr is ₹1.91 Lakh Crore (NOT ₹191,059 or 191 Million).\n"
+            "   - Quote the exact figures returned by the tools: Sales TTM (Cr), Net Profit TTM (Cr), "
+            "Operating Profit / EBITDA (Cr), Operating Margin (OPM %), Market Cap (Cr), ROCE (%), ROE (%), Stock P/E, Book Value.\n"
+            "3. CORE BUSINESS & SECTOR INTEGRITY: You MUST adhere strictly to the company's verified sector and industry "
+            "provided in the instrument context. NEVER claim or speculate that the company operates in an unrelated sector "
+            "(e.g. do not misidentify a power utility as heavy machinery, or a bank as an IT company).\n"
+            "4. Make sure to append a Markdown table at the end of the report summarizing the verified key metrics."
             + get_language_instruction()
         )
 
@@ -59,11 +94,11 @@ def create_fundamentals_analyst(llm):
         )
 
         prompt = prompt.partial(system_message=system_message)
-        prompt = prompt.partial(tool_names=", ".join([tool.name for tool in TOOLS]))
+        prompt = prompt.partial(tool_names=", ".join([tool.name for tool in ordered_tools]))
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
 
-        result, report = take_turn(prompt, llm, TOOLS, state["messages"])
+        result, report = take_turn(prompt, llm, ordered_tools, state["messages"])
 
         return {
             "messages": [result],

@@ -5,7 +5,7 @@ import pandas as pd
 import yfinance as yf
 
 from tradingagents.dataflows.config import get_config
-from tradingagents.dataflows.errors import NoMarketDataError
+from tradingagents.dataflows.errors import NoMarketDataError, VendorUnavailableError
 from tradingagents.dataflows.files import replace_file
 from tradingagents.dataflows.symbols import normalize_symbol, safe_ticker_component
 from tradingagents.dataflows.vendors.yahoo.common import raise_for_empty, yf_retry
@@ -155,7 +155,9 @@ def _cache_is_fresh(data_file, as_of_dt, now) -> bool:
     written = pd.Timestamp.fromtimestamp(os.path.getmtime(data_file))
     if written.date() != now.date():
         return False
-    return as_of_dt.date() < now.date() or (now - written).total_seconds() <= OHLCV_CACHE_TTL_SECONDS
+    return (
+        as_of_dt.date() < now.date() or (now - written).total_seconds() <= OHLCV_CACHE_TTL_SECONDS
+    )
 
 
 def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataFrame:
@@ -209,25 +211,88 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     if data is None:
         if canonical.isdigit() and len(canonical) >= 5:
             from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_nav_df
+
             downloaded = get_mutual_fund_nav_df(canonical)
-            replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+            replace_file(
+                data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8")
+            )
             data = downloaded
         else:
             # yf.download catches every error, a rate limit included, and returns
             # an empty frame. Ticker.history raises the rate limit, so it is retried.
-            downloaded = yf_retry(lambda: yf.Ticker(canonical).history(
-                start=start_str,
-                end=end_str,
-                auto_adjust=True,
-                actions=False,
-            ))
+            try:
+                downloaded = yf_retry(
+                    lambda: yf.Ticker(canonical).history(
+                        start=start_str,
+                        end=end_str,
+                        auto_adjust=True,
+                        actions=False,
+                    )
+                )
+            except VendorUnavailableError as exc:
+                if (
+                    "YFTzMissingError" in str(exc)
+                    and "." not in canonical
+                    and not canonical.startswith("^")
+                ):
+                    downloaded = None
+                    for suffix in [".NS", ".BO"]:
+                        try:
+                            alt_cand = f"{canonical}{suffix}"
+                            alt_dl = yf_retry(
+                                lambda cand=alt_cand: yf.Ticker(cand).history(
+                                    start=start_str,
+                                    end=end_str,
+                                    auto_adjust=True,
+                                    actions=False,
+                                )
+                            )
+                            if (
+                                alt_dl is not None
+                                and not alt_dl.empty
+                                and "Close" in alt_dl.columns
+                            ):
+                                downloaded = alt_dl
+                                canonical = alt_cand
+                                break
+                        except Exception:
+                            pass
+                    if downloaded is None:
+                        raise
+                else:
+                    raise
+            # Fall back to Indian exchange suffixes (.NS, .BO) for bare tickers with no data on Yahoo US
+            if (
+                (downloaded is None or downloaded.empty)
+                and "." not in canonical
+                and not canonical.startswith("^")
+            ):
+                for suffix in [".NS", ".BO"]:
+                    try:
+                        alt_cand = f"{canonical}{suffix}"
+                        alt_dl = yf_retry(
+                            lambda cand=alt_cand: yf.Ticker(cand).history(
+                                start=start_str,
+                                end=end_str,
+                                auto_adjust=True,
+                                actions=False,
+                            )
+                        )
+                        if alt_dl is not None and not alt_dl.empty and "Close" in alt_dl.columns:
+                            downloaded = alt_dl
+                            canonical = alt_cand
+                            break
+                    except Exception:
+                        pass
             if downloaded is None:
                 raise_for_empty(symbol, canonical, "price rows")
             downloaded = _ensure_date_column(downloaded.reset_index())
             # Only cache real data — never persist an empty frame.
             if downloaded.empty or "Close" not in downloaded.columns:
                 raise_for_empty(symbol, canonical, "price rows")
-            replace_file(data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8"))
+            replace_file(
+                data_file, lambda temp: downloaded.to_csv(temp, index=False, encoding="utf-8")
+            )
             data = downloaded
 
     data = _clean_dataframe(data)
@@ -242,13 +307,14 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     if not data.empty and pd.isna(data["Close"].iloc[-1]):
         settled = data["Close"].notna().to_numpy().nonzero()[0]
         if settled.size == 0:
-            raise NoMarketDataError(
-                symbol, canonical, "no bar in range has a closing price"
-            )
+            raise NoMarketDataError(symbol, canonical, "no bar in range has a closing price")
         logger.warning(
             "%s: %d trailing bar(s) through %s have no closing price; using %s "
-            "as the latest close.", canonical, len(data) - settled[-1] - 1,
-            data["Date"].iloc[-1].date(), data["Date"].iloc[settled[-1]].date(),
+            "as the latest close.",
+            canonical,
+            len(data) - settled[-1] - 1,
+            data["Date"].iloc[-1].date(),
+            data["Date"].iloc[settled[-1]].date(),
         )
 
     # Indicators need a continuous series, so gaps are carried forward. A caller
@@ -261,5 +327,3 @@ def load_ohlcv(symbol: str, as_of_date: str, fill_gaps: bool = True) -> pd.DataF
     _assert_ohlcv_not_stale(data, as_of_date, symbol, canonical)
 
     return data
-
-

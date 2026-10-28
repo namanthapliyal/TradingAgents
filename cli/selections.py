@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import sys
 from pathlib import Path
 
 import typer
@@ -21,6 +22,7 @@ from cli.prompts import (
     ask_openai_reasoning_effort,
     ask_output_language,
     ask_qwen_region,
+    confirm_colab_endpoint,
     confirm_ollama_endpoint,
     detect_asset_type,
     ensure_api_key,
@@ -28,6 +30,7 @@ from cli.prompts import (
     parse_analysis_date,
     parse_analysts,
     parse_ticker,
+    prompt_colab_url,
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
@@ -48,8 +51,39 @@ def get_user_selections(flags=None):
 
 def depth_from_env() -> bool:
     """Both round counts come from the environment, so the depth question is skipped."""
-    return bool(os.environ.get("TRADINGAGENTS_MAX_DEBATE_ROUNDS")
-                and os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS"))
+    return bool(
+        os.environ.get("TRADINGAGENTS_MAX_DEBATE_ROUNDS")
+        and os.environ.get("TRADINGAGENTS_MAX_RISK_ROUNDS")
+    )
+
+
+def resolve_llm_host(flags: dict | None) -> str | None:
+    """Resolve active LLM host: 'colab' or 'local' (Ollama).
+
+    Precedence: explicit CLI flags (--colab, --local, --host) > TRADINGAGENTS_LLM_HOST env.
+    """
+    flags = flags or {}
+    if flags.get("colab"):
+        return "colab"
+    if flags.get("local"):
+        return "local"
+    host_flag = flags.get("host")
+    if host_flag:
+        h = str(host_flag).strip().lower()
+        if h in ("colab", "google-colab", "google_colab", "remote"):
+            return "colab"
+        if h in ("local", "self-hosted", "self_hosted", "ollama"):
+            return "local"
+        return h
+    env_host = os.environ.get("TRADINGAGENTS_LLM_HOST")
+    if env_host:
+        h = env_host.strip().lower()
+        if h in ("colab", "google-colab", "google_colab", "remote"):
+            return "colab"
+        if h in ("local", "self-hosted", "self_hosted", "ollama"):
+            return "local"
+        return h
+    return None
 
 
 def unattended_gaps(flags) -> list[str]:
@@ -61,10 +95,11 @@ def unattended_gaps(flags) -> list[str]:
         gaps.append("TRADINGAGENTS_OUTPUT_LANGUAGE")
     if not depth_from_env():
         gaps.append("TRADINGAGENTS_MAX_DEBATE_ROUNDS and TRADINGAGENTS_MAX_RISK_ROUNDS")
-    if not env("TRADINGAGENTS_LLM_PROVIDER"):
-        gaps.append("TRADINGAGENTS_LLM_PROVIDER")
-    if not (env("TRADINGAGENTS_QUICK_THINK_LLM") or env("TRADINGAGENTS_DEEP_THINK_LLM")):
-        gaps.append("TRADINGAGENTS_QUICK_THINK_LLM or TRADINGAGENTS_DEEP_THINK_LLM")
+    if not resolve_llm_host(flags):
+        if not env("TRADINGAGENTS_LLM_PROVIDER"):
+            gaps.append("TRADINGAGENTS_LLM_PROVIDER")
+        if not (env("TRADINGAGENTS_QUICK_THINK_LLM") or env("TRADINGAGENTS_DEEP_THINK_LLM")):
+            gaps.append("TRADINGAGENTS_QUICK_THINK_LLM or TRADINGAGENTS_DEEP_THINK_LLM")
     return gaps
 
 
@@ -83,7 +118,9 @@ def _check_tier_providers(main_provider: str) -> None:
         if provider != main_provider.lower():
             variable = f"TRADINGAGENTS_{tier.upper()}_THINK_LLM"
             if not os.environ.get(variable):
-                console.print(f"[red]The {tier} tier runs on {provider}; set {variable} to one of its models.[/red]")
+                console.print(
+                    f"[red]The {tier} tier runs on {provider}; set {variable} to one of its models.[/red]"
+                )
                 raise typer.Exit(code=1)
         if provider not in used:
             used.append(provider)
@@ -109,9 +146,7 @@ def _prompt_selections(prefs, flags):
     welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
     welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
-    welcome_content += (
-        "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
-    )
+    welcome_content += "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
 
     welcome_box = Panel(
         welcome_content,
@@ -166,9 +201,7 @@ def _prompt_selections(prefs, flags):
     # Only announce when it's not the default stock path, to avoid printing
     # "stock" on every run.
     if asset_type.value != "stock":
-        console.print(
-            f"[green]Detected asset type:[/green] {asset_type.value}"
-        )
+        console.print(f"[green]Detected asset type:[/green] {asset_type.value}")
 
     # Step 2: Analysis date
     if flags.get("date") is not None:
@@ -188,14 +221,12 @@ def _prompt_selections(prefs, flags):
     # Step 3: Output language (skipped when set via TRADINGAGENTS_OUTPUT_LANGUAGE)
     if os.environ.get("TRADINGAGENTS_OUTPUT_LANGUAGE"):
         output_language = DEFAULT_CONFIG["output_language"]
-        console.print(
-            f"[green]✓ Output language from environment:[/green] {output_language}"
-        )
+        console.print(f"[green]✓ Output language from environment:[/green] {output_language}")
     else:
         console.print(
             create_question_box(
                 "Step 3: Output Language",
-                "Select the language for analyst reports and final decision"
+                "Select the language for analyst reports and final decision",
             )
         )
         output_language = ask_output_language(prefs.get("output_language"))
@@ -228,18 +259,41 @@ def _prompt_selections(prefs, flags):
         )
     else:
         console.print(
-            create_question_box(
-                "Step 5: Research Depth", "Select your research depth level"
-            )
+            create_question_box("Step 5: Research Depth", "Select your research depth level")
         )
         selected_research_depth = select_research_depth(prefs.get("research_depth"))
 
-    # Step 6: LLM Provider (skipped when set via TRADINGAGENTS_LLM_PROVIDER).
-    # The backend URL comes from TRADINGAGENTS_LLM_BACKEND_URL when set,
+    # Step 6: LLM Provider (skipped when host flag or TRADINGAGENTS_LLM_PROVIDER is set).
+    # The backend URL comes from TRADINGAGENTS_LLM_BACKEND_URL / COLAB_LLM_URL when set,
     # otherwise the provider's default endpoint — the same value the menu
     # would have picked.
+    resolved_host = resolve_llm_host(flags)
     provider_from_env = bool(os.environ.get("TRADINGAGENTS_LLM_PROVIDER"))
-    if provider_from_env:
+    if resolved_host == "colab":
+        selected_llm_provider = "colab"
+        backend_url = os.environ.get("COLAB_LLM_URL") or DEFAULT_CONFIG.get("backend_url")
+        if not backend_url:
+            if not sys.stdin.isatty():
+                console.print("[red]COLAB_LLM_URL is not set in environment or .env file.[/red]")
+                raise typer.Exit(code=1)
+            backend_url = prompt_colab_url()
+        if not backend_url.rstrip("/").endswith("/v1"):
+            backend_url = f"{backend_url.rstrip('/')}/v1"
+        console.print(
+            "[bold green]✓ LLM Host Mode: Google Colab (Remote Cloudflare Tunnel)[/bold green]"
+        )
+        confirm_colab_endpoint(backend_url)
+    elif resolved_host == "local":
+        selected_llm_provider = "ollama"
+        backend_url = (
+            os.environ.get("LOCAL_LLM_URL")
+            or os.environ.get("OLLAMA_BASE_URL")
+            or DEFAULT_CONFIG.get("backend_url")
+            or "http://localhost:11434/v1"
+        )
+        console.print("[bold green]✓ LLM Host Mode: Self-Hosted Local Ollama[/bold green]")
+        confirm_ollama_endpoint(backend_url)
+    elif provider_from_env:
         selected_llm_provider = DEFAULT_CONFIG["llm_provider"].lower()
         backend_url = resolve_backend_url(
             selected_llm_provider, env_url=DEFAULT_CONFIG["backend_url"]
@@ -247,11 +301,7 @@ def _prompt_selections(prefs, flags):
         console.print(f"[green]✓ LLM provider from environment:[/green] {selected_llm_provider}")
         console.print(f"[green]✓ Backend URL:[/green] {backend_url}")
     else:
-        console.print(
-            create_question_box(
-                "Step 6: LLM Provider", "Select your LLM provider"
-            )
-        )
+        console.print(create_question_box("Step 6: LLM Provider", "Select your LLM provider"))
         selected_llm_provider, backend_url = select_llm_provider(prefs.get("llm_provider"))
 
         # Providers with regional endpoints prompt for the region as a secondary
@@ -273,20 +323,66 @@ def _prompt_selections(prefs, flags):
         # The generic OpenAI-compatible endpoint has no default; ask for it if
         # neither the menu nor the environment supplied one.
         if selected_llm_provider == "openai_compatible" and not backend_url:
-            remembered_url = (prefs.get("backend_url")
-                              if prefs.get("llm_provider") == selected_llm_provider else None)
+            remembered_url = (
+                prefs.get("backend_url")
+                if prefs.get("llm_provider") == selected_llm_provider
+                else None
+            )
             backend_url = prompt_openai_compatible_url(remembered_url)
 
-        # For Ollama, surface the resolved endpoint (OLLAMA_BASE_URL vs default)
-        # before model selection so it's obvious where we're connecting.
-        if selected_llm_provider == "ollama":
-            confirm_ollama_endpoint(backend_url)
+        if selected_llm_provider == "colab" and not backend_url:
+            remembered_url = (
+                prefs.get("backend_url")
+                if prefs.get("llm_provider") == selected_llm_provider
+                else None
+            )
+            backend_url = prompt_colab_url(remembered_url)
 
+        if selected_llm_provider == "colab":
+            confirm_colab_endpoint(backend_url)
+        elif selected_llm_provider == "ollama":
+            confirm_ollama_endpoint(backend_url)
 
     _check_tier_providers(selected_llm_provider)
 
-    # Step 7: Thinking agents (skipped when either model is set via environment)
-    if os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM") or os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM"):
+    # Step 7: Thinking agents (skipped when either model is set via environment or host mode)
+    if resolved_host == "colab":
+        selected_shallow_thinker = (
+            os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM")
+            or os.environ.get("COLAB_QUICK_THINK_LLM")
+            or DEFAULT_CONFIG.get("quick_think_llm")
+            or "qwen3:8b"
+        )
+        selected_deep_thinker = (
+            os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM")
+            or os.environ.get("COLAB_DEEP_THINK_LLM")
+            or DEFAULT_CONFIG.get("deep_think_llm")
+            or "deepseek-r1:14b"
+        )
+        console.print(
+            f"[green]✓ Thinking agents (Colab):[/green] "
+            f"quick={selected_shallow_thinker}, deep={selected_deep_thinker}"
+        )
+    elif resolved_host == "local":
+        selected_shallow_thinker = (
+            os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM")
+            or os.environ.get("LOCAL_QUICK_THINK_LLM")
+            or DEFAULT_CONFIG.get("quick_think_llm")
+            or "qwen2.5-coder:1.5b"
+        )
+        selected_deep_thinker = (
+            os.environ.get("TRADINGAGENTS_DEEP_THINK_LLM")
+            or os.environ.get("LOCAL_DEEP_THINK_LLM")
+            or DEFAULT_CONFIG.get("deep_think_llm")
+            or "qwen2.5-coder:7b"
+        )
+        console.print(
+            f"[green]✓ Thinking agents (Local):[/green] "
+            f"quick={selected_shallow_thinker}, deep={selected_deep_thinker}"
+        )
+    elif os.environ.get("TRADINGAGENTS_QUICK_THINK_LLM") or os.environ.get(
+        "TRADINGAGENTS_DEEP_THINK_LLM"
+    ):
         selected_shallow_thinker = DEFAULT_CONFIG["quick_think_llm"]
         selected_deep_thinker = DEFAULT_CONFIG["deep_think_llm"]
         console.print(
@@ -323,21 +419,30 @@ def _prompt_selections(prefs, flags):
         anthropic_effort = DEFAULT_CONFIG["anthropic_effort"]
     elif provider_lower == "google":
         thinking_level = thinking_value_or_prompt(
-            "TRADINGAGENTS_GOOGLE_THINKING_LEVEL", "google_thinking_level",
-            "Gemini thinking mode", "Step 8: Thinking Mode",
-            "Configure Gemini thinking mode", ask_gemini_thinking_config,
+            "TRADINGAGENTS_GOOGLE_THINKING_LEVEL",
+            "google_thinking_level",
+            "Gemini thinking mode",
+            "Step 8: Thinking Mode",
+            "Configure Gemini thinking mode",
+            ask_gemini_thinking_config,
         )
     elif provider_lower == "openai":
         reasoning_effort = thinking_value_or_prompt(
-            "TRADINGAGENTS_OPENAI_REASONING_EFFORT", "openai_reasoning_effort",
-            "Reasoning effort", "Step 8: Reasoning Effort",
-            "Configure OpenAI reasoning effort level", ask_openai_reasoning_effort,
+            "TRADINGAGENTS_OPENAI_REASONING_EFFORT",
+            "openai_reasoning_effort",
+            "Reasoning effort",
+            "Step 8: Reasoning Effort",
+            "Configure OpenAI reasoning effort level",
+            ask_openai_reasoning_effort,
         )
     elif provider_lower == "anthropic":
         anthropic_effort = thinking_value_or_prompt(
-            "TRADINGAGENTS_ANTHROPIC_EFFORT", "anthropic_effort",
-            "Claude effort", "Step 8: Effort Level",
-            "Configure Claude effort level", ask_anthropic_effort,
+            "TRADINGAGENTS_ANTHROPIC_EFFORT",
+            "anthropic_effort",
+            "Claude effort",
+            "Step 8: Effort Level",
+            "Configure Claude effort level",
+            ask_anthropic_effort,
         )
 
     return {
@@ -360,9 +465,7 @@ def _prompt_selections(prefs, flags):
 def get_analysis_date():
     """Get the analysis date from user input."""
     while True:
-        date_str = typer.prompt(
-            "", default=datetime.datetime.now().strftime("%Y-%m-%d")
-        )
+        date_str = typer.prompt("", default=datetime.datetime.now().strftime("%Y-%m-%d"))
         try:
             return parse_analysis_date(date_str)
         except ValueError as exc:

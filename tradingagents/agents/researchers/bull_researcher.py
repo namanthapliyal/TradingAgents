@@ -48,7 +48,7 @@ def create_bull_researcher(llm):
                 "- Competitive Advantages: Emphasize moats, market positioning, order books, and corporate governance."
             )
 
-        prompt = f"""You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
+        prompt = f"""You are an institutional financial research analyst participating in an investment committee debate. You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
 Key points to focus on:
 {asset_guidelines}
@@ -68,8 +68,9 @@ Use this information to deliver a compelling bull argument, refute the bear's co
 """ + get_language_instruction()
 
         response = llm.invoke(prompt)
+        content = response.content if hasattr(response, "content") else str(response)
 
-        argument = f"Bull Analyst: {response.content}"
+        argument = f"Bull Analyst: {content}"
 
         new_investment_debate_state = {
             "history": history + "\n" + argument,

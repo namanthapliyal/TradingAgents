@@ -18,8 +18,8 @@ from tradingagents.dataflows.vendors.yahoo.snapshot import build_verified_market
 @tool
 def get_stock_data(
     symbol: Annotated[str, InjectedState("company_of_interest")],
-    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
-    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+    start_date: Annotated[str, "Start date in yyyy-mm-dd format"] = "",
+    end_date: Annotated[str, "End date in yyyy-mm-dd format"] = "",
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
@@ -31,6 +31,17 @@ def get_stock_data(
     Returns:
         str: A formatted dataframe containing the price data for the instrument over the date range.
     """
+    from datetime import datetime, timedelta
+
+    if not end_date:
+        end_date = trade_date or datetime.now().strftime("%Y-%m-%d")
+    if not start_date:
+        try:
+            start_date = (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=30)).strftime(
+                "%Y-%m-%d"
+            )
+        except Exception:
+            start_date = end_date
     try:
         start_date, end_date = as_of_window(start_date, end_date, trade_date)
     except ValueError as e:
@@ -63,7 +74,9 @@ def get_indicators(
     results = []
     for ind in indicators:
         try:
-            results.append(route_to_vendor("get_indicators", symbol, ind, curr_date, look_back_days))
+            results.append(
+                route_to_vendor("get_indicators", symbol, ind, curr_date, look_back_days)
+            )
         except ValueError as e:
             results.append(str(e))
     return "\n\n".join(results)
@@ -97,7 +110,7 @@ def get_verified_market_snapshot(
 @tool
 def get_fundamentals(
     ticker: Annotated[str, InjectedState("company_of_interest")],
-    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = "",
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
@@ -171,8 +184,8 @@ def get_income_statement(
 @tool
 def get_news(
     ticker: Annotated[str, InjectedState("company_of_interest")],
-    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
-    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+    start_date: Annotated[str, "Start date in yyyy-mm-dd format"] = "",
+    end_date: Annotated[str, "End date in yyyy-mm-dd format"] = "",
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
@@ -184,6 +197,17 @@ def get_news(
     Returns:
         str: A formatted string containing news data
     """
+    from datetime import datetime, timedelta
+
+    if not end_date:
+        end_date = trade_date or datetime.now().strftime("%Y-%m-%d")
+    if not start_date:
+        try:
+            start_date = (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=7)).strftime(
+                "%Y-%m-%d"
+            )
+        except Exception:
+            start_date = end_date
     try:
         start_date, end_date = as_of_window(start_date, end_date, trade_date)
     except ValueError as e:
@@ -194,8 +218,12 @@ def get_news(
 @tool
 def get_global_news(
     curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
-    look_back_days: Annotated[int | None, "Days to look back; omit to use the configured default"] = None,
-    limit: Annotated[int | None, "Max articles to return; omit to use the configured default"] = None,
+    look_back_days: Annotated[
+        int | None, "Days to look back; omit to use the configured default"
+    ] = None,
+    limit: Annotated[
+        int | None, "Max articles to return; omit to use the configured default"
+    ] = None,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
@@ -261,7 +289,9 @@ def get_macro_indicators(
     Returns:
         str: A formatted markdown report of the macro series
     """
-    return route_to_vendor("get_macro_indicators", indicator, as_of(curr_date, trade_date), look_back_days)
+    return route_to_vendor(
+        "get_macro_indicators", indicator, as_of(curr_date, trade_date), look_back_days
+    )
 
 
 @tool
@@ -304,6 +334,7 @@ def get_mutual_fund_info(
         str: A formatted markdown report containing mutual fund performance and metadata.
     """
     from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_report
+
     try:
         return get_mutual_fund_report(scheme)
     except Exception as exc:
@@ -323,6 +354,7 @@ def get_etf_info(
         str: A formatted markdown report containing ETF metrics.
     """
     from tradingagents.dataflows.vendors.etf_vendor import get_etf_report
+
     try:
         return get_etf_report(ticker)
     except Exception as exc:

@@ -21,6 +21,7 @@ def get_language_instruction() -> str:
     report rather than a mix of languages.
     """
     from tradingagents.dataflows.config import get_config
+
     lang = get_config().get("output_language", "English")
     if lang.strip().lower() == "english":
         return ""
@@ -29,7 +30,7 @@ def get_language_instruction() -> str:
     # search, where a negated rating ("not a Sell") reads as the call (#1435).
     return (
         f" Write your entire response in {lang}, except the labelled lines the format"
-        f" asks for (the \"**Rating**:\" line, \"FINAL TRANSACTION PROPOSAL:\"):"
+        f' asks for (the "**Rating**:" line, "FINAL TRANSACTION PROPOSAL:"):'
         f" keep their label and value in English, exactly as specified."
     )
 
@@ -248,6 +249,16 @@ def build_instrument_context(
             f" Resolved identity: {'; '.join(details)}. "
             "Do not substitute a different company or asset unless a tool "
             "result explicitly disproves this resolved identity."
+        )
+
+    if not is_historical(trade_date) and (identity.get("sector") or identity.get("industry")):
+        sec = identity.get("sector")
+        ind = identity.get("industry")
+        sec_desc = f"{sec} / {ind}" if (sec and ind) else (sec or ind)
+        context += (
+            f" CRITICAL BUSINESS ANCHOR: The instrument's verified business sector is '{sec_desc}'. "
+            f"All analysis, industry trends, risk factors, and valuation metrics MUST strictly adhere to this verified sector. "
+            f"Do NOT speculate, assume, or hallucinate an unrelated industry (e.g., heavy machinery, mining equipment, software, or retail)."
         )
 
     if is_crypto:

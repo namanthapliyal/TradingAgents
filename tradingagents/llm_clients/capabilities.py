@@ -20,9 +20,9 @@ from typing import Literal
 
 StructuredMethod = Literal[
     "function_calling",  # uses tools; respects supports_tool_choice
-    "json_mode",         # uses response_format={"type":"json_object"}
-    "json_schema",       # uses response_format={"type":"json_schema",...}
-    "none",              # no structured output available; caller falls back to free-text
+    "json_mode",  # uses response_format={"type":"json_object"}
+    "json_schema",  # uses response_format={"type":"json_schema",...}
+    "none",  # no structured output available; caller falls back to free-text
 ]
 
 
@@ -116,6 +116,7 @@ _BY_ID: dict[str, ModelCapabilities] = {
 _BY_PATTERN: list[tuple[re.Pattern[str], ModelCapabilities]] = [
     (re.compile(r"^deepseek-v\d"), _DEEPSEEK_THINKING),
     (re.compile(r"^deepseek-reasoner"), _DEEPSEEK_THINKING),
+    (re.compile(r"^deepseek-r1"), _DEEPSEEK_THINKING),
     (re.compile(r"^deepseek-flash"), _DEEPSEEK_THINKING),
     (re.compile(r"^MiniMax-M\d"), _MINIMAX_THINKING),
 ]
