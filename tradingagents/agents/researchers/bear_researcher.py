@@ -45,7 +45,8 @@ def create_bear_researcher(llm):
             fundamentals_label = "Company fundamentals report"
             asset_risk_guidelines = (
                 "- Valuation & Growth: Highlight elevated P/E vs industry, revenue slowdown, or EBITDA margin erosion.\n"
-                "- Financial & Operational Risks: Emphasize debt levels, working capital cycles, corporate governance, and FII outflow headwinds."
+                "- Financial & Operational Risks: Emphasize debt levels, working capital cycles, corporate governance, and FII outflow headwinds.\n"
+                "- Macroeconomic & Transmission Headwinds: For cyclical and commodity companies (metals, mining, energy), evaluate how high US bond yields, a strong US dollar (DXY), and softening benchmark prices (LME/Brent) create structural margin compression, proving that a 'low P/E' multiple is a cyclical discount or value trap rather than a bargain."
             )
 
         prompt = f"""You are an institutional financial research analyst conducting fiduciary risk assessment. You are a Bear Analyst making the case against investing in the {target_label}. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.

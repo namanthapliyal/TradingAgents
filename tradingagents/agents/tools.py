@@ -359,3 +359,142 @@ def get_etf_info(
         return get_etf_report(ticker)
     except Exception as exc:
         return f"Error fetching ETF data for {ticker}: {exc}"
+
+
+@tool
+def get_peer_comparison(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+) -> str:
+    """Retrieve sector and industry peer comparisons comparing valuation multiples (P/E, Market Cap, ROCE, Div Yield) against direct competitors.
+
+    Args:
+        symbol (str): Stock ticker symbol under analysis.
+    Returns:
+        str: A formatted markdown comparison table of the instrument against its direct industry peers.
+    """
+    return route_to_vendor("get_peer_comparison", symbol)
+
+
+@tool
+def get_analyst_consensus(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+) -> str:
+    """Retrieve Wall Street and institutional broker consensus: overall recommendation (Buy/Hold/Sell), price target range (Low/Mean/High), and analyst count.
+
+    Args:
+        symbol (str): Stock ticker symbol under analysis.
+    Returns:
+        str: A report detailing institutional analyst price targets, implied upside %, and ratings distribution.
+    """
+    return route_to_vendor("get_analyst_consensus", symbol)
+
+
+@tool
+def get_technical_consensus(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """Retrieve an aggregate technical consensus matrix tallying 15+ indicators across Moving Averages and Momentum Oscillators into an overall verdict (Strong Buy / Buy / Neutral / Sell / Strong Sell).
+
+    Args:
+        symbol (str): Stock ticker symbol under analysis.
+        curr_date (str): Current trading date in yyyy-mm-dd format.
+    Returns:
+        str: A formatted markdown table with individual indicator signals and the aggregate consensus verdict.
+    """
+    return route_to_vendor("get_technical_consensus", symbol, as_of(curr_date, trade_date))
+
+
+@tool
+def get_institutional_flow(
+    symbol: Annotated[str, InjectedState("company_of_interest")],
+) -> str:
+    """Retrieve institutional flow, FII/DII multi-quarter shareholding trends, and large NSE bulk/block deal disclosures.
+
+    Args:
+        symbol (str): Stock ticker symbol under analysis.
+    Returns:
+        str: A report detailing FII/DII accumulation or dumping, major institutional holders, and recent single-day bulk/block deals.
+    """
+    return route_to_vendor("get_institutional_flow", symbol)
+
+
+@tool
+def search_market_news(
+    query: Annotated[
+        str, "Search terms (e.g. 'quarterly results turnaround', 'earnings report', 'target price')"
+    ],
+    ticker: Annotated[str, InjectedState("company_of_interest")] = "",
+) -> str:
+    """Search live web & market news via public search engines (Google News RSS & DuckDuckGo).
+    Use this to find breaking earnings releases, corporate turnarounds, or broker updates when standard feeds return empty.
+
+    Args:
+        query (str): Specific news keywords or search phrase.
+        ticker (str): Stock ticker symbol under analysis.
+    Returns:
+        str: A formatted digest of recent news articles with titles, summaries, and source links.
+    """
+    return route_to_vendor("search_market_news", query, ticker=ticker)
+
+
+@tool
+def get_reddit_global_sentiment(
+    query: Annotated[
+        str,
+        "Company name or conversational name (e.g. 'Vedanta Power', 'Hindustan Zinc', 'Reliance')",
+    ] = "",
+    ticker: Annotated[str, InjectedState("company_of_interest")] = "",
+) -> str:
+    """Retrieve discussions globally across all Reddit subreddits using company name or ticker.
+    Bypasses subreddit silos to capture retail sentiment across the entire Reddit network.
+
+    Args:
+        query (str): Company name or phrase to search globally.
+        ticker (str): Stock ticker symbol.
+    Returns:
+        str: Extracted Reddit discussions with subreddit communities, post dates, titles, and excerpts.
+    """
+    return route_to_vendor("get_reddit_global_sentiment", query, ticker=ticker)
+
+
+@tool
+def get_x_sentiment(
+    query: Annotated[
+        str, "Company name or conversational name (e.g. 'Hindustan Zinc', 'Reliance')"
+    ] = "",
+    ticker: Annotated[str, InjectedState("company_of_interest")] = "",
+) -> str:
+    """Retrieve recent financial commentary, retail sentiment, and trader chatter on X / Twitter.
+
+    Args:
+        query (str): Company or asset name.
+        ticker (str): Stock ticker symbol.
+    Returns:
+        str: Extracted tweets and trader commentary from X / Twitter.
+    """
+    return route_to_vendor("get_x_sentiment", query, ticker=ticker)
+
+
+@tool
+def get_macro_snapshot(
+    as_of_date: Annotated[
+        str, "Current date in yyyy-mm-dd format; defaults to latest available"
+    ] = "",
+    sector: Annotated[
+        str,
+        "Company sector or industry (e.g. 'Metals & Mining', 'Utilities', 'Energy', 'Technology')",
+    ] = "",
+    trade_date: Annotated[str, InjectedState("trade_date")] = "",
+) -> str:
+    """Retrieve a unified global macro regime dashboard (US 10Y Yields, US Dollar Index DXY, LME/Commodities, VIX).
+    Provides sector-specific Headwind and Tailwind classification to assess global macro transmission.
+
+    Args:
+        as_of_date (str): Date for the snapshot.
+        sector (str): Sector or industry of the company under analysis.
+    Returns:
+        str: Markdown table with macro readings, 30-day trends, and sector transmission impact.
+    """
+    return route_to_vendor("get_macro_snapshot", as_of(as_of_date, trade_date), sector=sector)

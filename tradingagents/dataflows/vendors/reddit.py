@@ -26,11 +26,12 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 from urllib.request import Request, urlopen
 
 from tradingagents.dataflows.date_window import coverage_gap, in_window
 from tradingagents.dataflows.symbols import crypto_base
+from tradingagents.dataflows.vendors.web_search import search_duckduckgo
 
 logger = logging.getLogger(__name__)
 
@@ -367,4 +368,111 @@ def fetch_reddit_posts(
                 + (f"\n    body excerpt: {selftext}" if selftext else "")
             )
         blocks.append("\n".join(lines))
-    return "\n\n".join(([note] if note else []) + blocks)
+
+    result_str = "\n\n".join(([note] if note else []) + blocks)
+    # If all hardcoded subreddits reported no posts, seamlessly fall back to global search
+    if "<no posts found" in result_str and "recent posts mentioning" not in result_str:
+        global_fallback = fetch_reddit_global(
+            ticker,
+            limit=limit_per_sub * 2,
+            timeout=timeout,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if (
+            "<no Reddit discussions found" not in global_fallback
+            and "<Reddit global search unavailable" not in global_fallback
+        ):
+            return f"{result_str}\n\n[Expanding search globally across all subreddits]:\n{global_fallback}"
+
+    return result_str
+
+
+def _fetch_global_rss(query: str, limit: int, timeout: float) -> list[dict] | None:
+    """Fetch recent posts globally across all subreddits via Reddit's root RSS feed."""
+    url = f"https://www.reddit.com/search.rss?q={quote_plus(query)}&sort=new&limit={limit}"
+    req = Request(url, headers={"User-Agent": _UA})
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            root = ET.fromstring(_read_capped(resp))
+    except Exception as exc:
+        logger.warning("Reddit global search.rss failed for %r: %s", query, exc)
+        return None
+
+    posts = []
+    for entry in root.findall("atom:entry", _ATOM_NS)[:limit]:
+        title_el = entry.find("atom:title", _ATOM_NS)
+        published_el = entry.find("atom:published", _ATOM_NS)
+        content_el = entry.find("atom:content", _ATOM_NS)
+        category_el = entry.find("atom:category", _ATOM_NS)
+        posts.append(
+            {
+                "title": (title_el.text if title_el is not None else "") or "",
+                "created_utc": _iso_to_timestamp(
+                    published_el.text if published_el is not None else None
+                ),
+                "selftext": _strip_html(content_el.text if content_el is not None else ""),
+                "subreddit": category_el.get("term") if category_el is not None else "all",
+            }
+        )
+    return posts
+
+
+def fetch_reddit_global(
+    query: str,
+    ticker: str = "",
+    limit: int = 10,
+    timeout: float = 10.0,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> str:
+    """Generic global Reddit search across all subreddits using company name or ticker.
+
+    Bypasses subreddit silos by querying the entire Reddit network without subreddit
+    restrictions. Multi-tier implementation:
+    1. Direct Reddit global RSS feed (bypasses 403 WAF).
+    2. DuckDuckGo site:reddit.com fallback if Reddit returns 429 or fails.
+    """
+    clean_ticker = _clean_search_ticker(ticker) if ticker else ""
+    search_term = query.strip() or clean_ticker
+    if not search_term:
+        return "No search term provided for global Reddit search."
+
+    # Tier 1: Try Reddit Global RSS
+    fetched = _fetch_global_rss(search_term, limit=min(limit * 2, 50), timeout=timeout)
+
+    # Filter by date window if provided
+    posts = _within_window(fetched, start_date, end_date) if fetched else []
+
+    if posts:
+        lines = [f"### Global Reddit Investor Discussions for '{search_term}' (via Reddit RSS):"]
+        for p in posts[:limit]:
+            sub = p.get("subreddit") or "all"
+            created = p.get("created_utc")
+            date_str = time.strftime("%Y-%m-%d", time.gmtime(created)) if created else "?"
+            title = (p.get("title") or "").replace("\n", " ").strip()
+            selftext = (p.get("selftext") or "").replace("\n", " ").strip()
+            if len(selftext) > 200:
+                selftext = selftext[:200] + "…"
+
+            lines.append(f"- **[r/{sub}]** ({date_str}): {title}")
+            if selftext:
+                lines.append(f"  Excerpt: {selftext}")
+        return "\n".join(lines)
+
+    # Tier 2: Free DuckDuckGo Site-Search Fallback
+    ddg_query = f'site:reddit.com "{search_term}" stock discussion'
+    ddg_results = search_duckduckgo(ddg_query, limit=limit)
+    if ddg_results:
+        lines = [
+            f"### Global Reddit Investor Discussions for '{search_term}' (via DuckDuckGo Reddit Search):"
+        ]
+        for res in ddg_results[:limit]:
+            lines.append(f"- **{res['title']}**")
+            if res.get("snippet"):
+                lines.append(f"  Excerpt: {res['snippet']}")
+            if res.get("link"):
+                lines.append(f"  Link: {res['link']}")
+        return "\n".join(lines)
+
+    return f"<No Reddit discussions found mentioning '{search_term}'>"

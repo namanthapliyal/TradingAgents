@@ -3,18 +3,26 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.analysts.turn import take_turn
 from tradingagents.agents.context import get_instrument_context_from_state, get_language_instruction
 from tradingagents.agents.tools import (
+    get_analyst_consensus,
     get_balance_sheet,
     get_cashflow,
     get_etf_info,
     get_fundamentals,
     get_income_statement,
     get_insider_transactions,
+    get_institutional_flow,
+    get_macro_snapshot,
     get_mutual_fund_info,
+    get_peer_comparison,
 )
 
 # The tools this analyst is offered; its tool node is built from the same tuple.
 TOOLS = (
     get_fundamentals,
+    get_peer_comparison,
+    get_institutional_flow,
+    get_macro_snapshot,
+    get_analyst_consensus,
     get_balance_sheet,
     get_cashflow,
     get_income_statement,
@@ -72,7 +80,13 @@ def create_fundamentals_analyst(llm):
             "3. CORE BUSINESS & SECTOR INTEGRITY: You MUST adhere strictly to the company's verified sector and industry "
             "provided in the instrument context. NEVER claim or speculate that the company operates in an unrelated sector "
             "(e.g. do not misidentify a power utility as heavy machinery, or a bank as an IT company).\n"
-            "4. Make sure to append a Markdown table at the end of the report summarizing the verified key metrics."
+            "4. PEER COMPARISON & CONSENSUS: For stocks, call `get_peer_comparison` to ground valuation (P/E, ROCE, Market Cap) "
+            "against direct industry peers, call `get_institutional_flow` to examine FII/DII accumulation trends and large block/bulk deals, "
+            "and call `get_analyst_consensus` to compare your findings against institutional price targets.\n"
+            "5. MACRO-SECTOR TRANSMISSION: For cyclical, export-oriented, or commodity companies (metals, mining, energy, utilities), "
+            "call `get_macro_snapshot` to evaluate benchmark commodity pricing (LME base metals, crude oil, silver), US yields, and dollar index dynamics. "
+            "Distinguish between a cyclical macro discount (e.g. pressure from a strong USD) and genuine operational undervaluation.\n"
+            "6. Make sure to append a Markdown table at the end of the report summarizing the verified key metrics."
             + get_language_instruction()
         )
 

@@ -216,3 +216,47 @@ class TestScreenerSignatures:
             assert "Balance Sheet Summary (annual)" in bs
             assert "Cash Flow Summary (quarterly)" in cf
             assert "Income Statement Summary (annual)" in inc
+
+    def test_screener_soup_high_low_and_empty_handling(self):
+        from bs4 import BeautifulSoup
+
+        from tradingagents.dataflows.vendors.screener_in.fundamentals import _parse_screener_soup
+
+        html = """
+        <h1>Vedanta Power Ltd</h1>
+        <ul id="top-ratios">
+            <li><span class="name">High / Low</span><span class="nowrap value">₹ <span class="number">52.5</span> / <span class="number">27.5</span></span></li>
+            <li><span class="name">Book Value</span><span class="nowrap value">₹ <span class="number"></span></span></li>
+            <li><span class="name">ROCE</span><span class="nowrap value"><span class="number">7.03</span>%</span></li>
+        </ul>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        parsed = _parse_screener_soup(soup)
+
+        assert parsed.get("company_name") == "Vedanta Power Ltd"
+        assert parsed.get("high___low") == "52.5 / 27.5"
+        assert "book_value" not in parsed  # Empty string not saved as blank
+        assert parsed.get("roce") == 7.03
+
+    def test_screener_get_fundamentals_formats_cleanly(self):
+        from tradingagents.dataflows.vendors.screener_in import fundamentals
+
+        mock_data = {
+            "ticker": "VEDPOWER",
+            "company_name": "Vedanta Power Ltd",
+            "current_price": 33.1,
+            "high___low": "52.5 / 27.5",
+            "book_value": 22.1,
+            "roce": 7.03,
+            "roe": 22.0,
+            "stock_p_e": 35.5,
+        }
+        with patch.object(fundamentals, "get_fundamentals_dict", return_value=mock_data):
+            res = fundamentals.get_fundamentals("VEDPOWER")
+            assert "High / Low: 52.5 / 27.5" in res
+            assert "Book Value (INR): 22.1" in res
+            assert "ROCE (%): 7.03" in res
+            assert "ROE (%): 22.0" in res
+            # Missing metrics should cleanly output N/A, never trailing whitespace
+            assert "Sector: N/A" in res
+            assert "Book Value (INR): \n" not in res
