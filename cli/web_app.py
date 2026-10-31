@@ -484,10 +484,37 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
             )
 
         if not final_state or not final_state.get("final_trade_decision"):
-            GLOBAL_STATE.add_message(
-                "System", "Running graph propagation to complete final decisions...", "system"
-            )
-            final_state, signal = graph.propagate(ticker, trade_date)
+            if (
+                final_state
+                and isinstance(final_state, dict)
+                and final_state.get("risk_debate_state")
+                and final_state.get("trader_investment_plan")
+            ):
+                GLOBAL_STATE.add_message(
+                    "System",
+                    "Synthesizing final trade decision directly from accumulated debate state...",
+                    "system",
+                )
+                try:
+                    from tradingagents.agents.managers.portfolio_manager import (
+                        create_portfolio_manager,
+                    )
+
+                    pm_node = create_portfolio_manager(graph.deep_thinking_llm)
+                    pm_output = pm_node(final_state)
+                    final_state.update(pm_output)
+                except Exception as pm_err:
+                    GLOBAL_STATE.add_message(
+                        "System",
+                        f"Direct PM synthesis notice: {pm_err}. Falling back to graph propagation...",
+                        "system",
+                    )
+                    final_state, signal = graph.propagate(ticker, trade_date)
+            else:
+                GLOBAL_STATE.add_message(
+                    "System", "Running graph propagation to complete final decisions...", "system"
+                )
+                final_state, signal = graph.propagate(ticker, trade_date)
 
         # Mark all agents completed
         for k in GLOBAL_STATE.agent_statuses:
