@@ -7,6 +7,7 @@ from tradingagents.agents.tools import (
     get_indicators,
     get_mutual_fund_info,
     get_stock_data,
+    get_technical_consensus,
     get_verified_market_snapshot,
 )
 
@@ -14,6 +15,7 @@ from tradingagents.agents.tools import (
 TOOLS = (
     get_stock_data,
     get_indicators,
+    get_technical_consensus,
     get_verified_market_snapshot,
     get_mutual_fund_info,
     get_etf_info,
@@ -57,6 +59,9 @@ For Indian Market Instruments:
 - For Indian Stocks: Use get_stock_data and get_indicators to analyze price action, moving averages (50/200 SMA), RSI, and MACD.
 - For Indian Mutual Funds: Call get_mutual_fund_info to evaluate NAV trajectory, 1M/6M/1Y/3Y/5Y CAGR returns, and scheme category. If calling get_stock_data, note that daily NAV serves as the closing price.
 - For Indian ETFs: Call get_etf_info alongside get_stock_data to evaluate underlying index tracking, trading volume, and liquidity.
+
+Technical Consensus Matrix:
+- Call get_technical_consensus to retrieve an aggregate institutional tally across 15+ Moving Averages and Momentum Oscillators (Strong Buy / Buy / Neutral / Sell / Strong Sell) as a quantitative baseline.
 
 Before writing the final report, call get_verified_market_snapshot for this ticker and the current date, and treat it as the source of truth for any exact OHLCV, price-level, or indicator-value claim. If another tool's output conflicts with the verified snapshot, flag the discrepancy rather than inventing a reconciled number. Do not claim historical validation, support/resistance bounces, or exact percentage moves unless they are directly supported by tool output with concrete dates and prices.
 

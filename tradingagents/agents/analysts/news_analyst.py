@@ -3,17 +3,25 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.analysts.turn import take_turn
 from tradingagents.agents.context import get_instrument_context_from_state, get_language_instruction
 from tradingagents.agents.tools import (
+    get_analyst_consensus,
     get_global_news,
+    get_institutional_flow,
     get_macro_indicators,
+    get_macro_snapshot,
     get_news,
     get_prediction_markets,
+    search_market_news,
 )
 
 # The tools this analyst is offered; its tool node is built from the same tuple.
 TOOLS = (
     get_news,
     get_global_news,
+    get_institutional_flow,
+    get_analyst_consensus,
     get_macro_indicators,
+    get_macro_snapshot,
+    search_market_news,
     get_prediction_markets,
 )
 
@@ -33,6 +41,8 @@ def create_news_analyst(llm):
             f"2. Use `get_global_news(curr_date, look_back_days, limit)` for broader macroeconomic developments.\n"
             f"3. Use `get_macro_indicators` to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve').\n"
             f"4. For Indian instruments (NSE/BSE stocks, Mutual Funds, ETFs): `get_news` retrieves Indian financial news coverage covering corporate earnings, SEBI updates, and sector events. Consider Indian domestic factors (RBI repo rate, Indian CPI inflation, FII/DII institutional flows, budget/tax policies) alongside global cues.\n"
+            f"5. If `get_news` returns no articles or limited coverage, you MUST call `search_market_news(query, ticker)` (e.g. query='quarterly results earnings turnaround') to retrieve real-time stories from public search engines before concluding there is no news.\n"
+            f"6. ALWAYS call `get_macro_snapshot(as_of_date, sector)` to assess the global macroeconomic regime (US 10-Year Treasury Yields, US Dollar Index DXY, LME Base Metals, Silver/Gold, Brent Crude Oil, VIX). For cyclical and commodity equities (e.g., metals & mining, utilities), explicitly evaluate how US bond yields and dollar strength act as headwinds or tailwinds on selling prices and margins.\n"
             f"Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()

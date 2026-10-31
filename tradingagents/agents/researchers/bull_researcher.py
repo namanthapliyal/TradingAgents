@@ -45,7 +45,8 @@ def create_bull_researcher(llm):
             fundamentals_label = "Company fundamentals report"
             asset_guidelines = (
                 "- Growth Potential: Highlight market opportunities, revenue projections, EBITDA margins, and ROCE.\n"
-                "- Competitive Advantages: Emphasize moats, market positioning, order books, and corporate governance."
+                "- Competitive Advantages: Emphasize moats, market positioning, order books, and corporate governance.\n"
+                "- Macro Realities: Address cyclical commodity and interest rate realities honestly, showing how low-cost production or volume growth mitigate global yield and currency pressures."
             )
 
         prompt = f"""You are an institutional financial research analyst participating in an investment committee debate. You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.

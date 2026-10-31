@@ -17,10 +17,25 @@ from tradingagents.dataflows.vendors.alpha_vantage import (
     get_news as get_alpha_vantage_news,
     get_stock as get_alpha_vantage_stock,
 )
+from tradingagents.dataflows.vendors.analyst_consensus import (
+    get_analyst_consensus as get_vendor_analyst_consensus,
+)
 from tradingagents.dataflows.vendors.fred import get_macro_data as get_fred_macro_data
 from tradingagents.dataflows.vendors.indian_news import get_news_indian
+from tradingagents.dataflows.vendors.institutional_flow import (
+    get_institutional_flow as get_vendor_institutional_flow,
+)
+from tradingagents.dataflows.vendors.macro_snapshot import (
+    get_macro_snapshot as get_vendor_macro_snapshot,
+)
+from tradingagents.dataflows.vendors.peer_analysis import (
+    get_peer_comparison as get_vendor_peer_comparison,
+)
 from tradingagents.dataflows.vendors.polymarket import (
     get_prediction_markets as get_polymarket_prediction_markets,
+)
+from tradingagents.dataflows.vendors.reddit import (
+    fetch_reddit_global as get_vendor_reddit_global,
 )
 from tradingagents.dataflows.vendors.screener_in.fundamentals import (
     get_balance_sheet as get_screener_balance_sheet,
@@ -32,6 +47,13 @@ from tradingagents.dataflows.vendors.sec_edgar import (
     get_balance_sheet as get_sec_edgar_balance_sheet,
     get_cashflow as get_sec_edgar_cashflow,
     get_income_statement as get_sec_edgar_income_statement,
+)
+from tradingagents.dataflows.vendors.technical_consensus import (
+    compute_technical_consensus as get_vendor_technical_consensus,
+)
+from tradingagents.dataflows.vendors.web_search import (
+    search_market_news as get_vendor_market_news,
+    search_x_sentiment as get_vendor_x_sentiment,
 )
 from tradingagents.dataflows.vendors.yahoo.fundamentals import (
     get_balance_sheet as get_yfinance_balance_sheet,
@@ -53,24 +75,36 @@ TOOLS_CATEGORIES = {
     "core_stock_apis": {"description": "OHLCV stock price data", "tools": ["get_stock_data"]},
     "technical_indicators": {
         "description": "Technical analysis indicators",
-        "tools": ["get_indicators"],
+        "tools": ["get_indicators", "get_technical_consensus"],
     },
     "fundamental_data": {
         "description": "Company fundamentals",
-        "tools": ["get_fundamentals", "get_balance_sheet", "get_cashflow", "get_income_statement"],
+        "tools": [
+            "get_fundamentals",
+            "get_balance_sheet",
+            "get_cashflow",
+            "get_income_statement",
+            "get_peer_comparison",
+            "get_institutional_flow",
+        ],
     },
     "news_data": {
-        "description": "News and insider data",
+        "description": "News, consensus, sentiment and social search data",
         "tools": [
             "get_news",
             "get_global_news",
             "get_insider_transactions",
+            "get_analyst_consensus",
+            "search_market_news",
+            "get_x_sentiment",
+            "get_reddit_global_sentiment",
         ],
     },
     "macro_data": {
-        "description": "Macroeconomic indicators (rates, inflation, labor, growth)",
+        "description": "Macroeconomic indicators (rates, inflation, labor, growth, benchmark regimes)",
         "tools": [
             "get_macro_indicators",
+            "get_macro_snapshot",
         ],
     },
     "prediction_markets": {
@@ -100,6 +134,12 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
     },
+    "get_technical_consensus": {
+        "default": get_vendor_technical_consensus,
+        "yfinance": get_vendor_technical_consensus,
+        "alpha_vantage": get_vendor_technical_consensus,
+        "technical_consensus": get_vendor_technical_consensus,
+    },
     # fundamental_data
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
@@ -124,6 +164,21 @@ VENDOR_METHODS = {
         "sec_edgar": get_sec_edgar_income_statement,
         "yfinance": get_yfinance_income_statement,
     },
+    "get_peer_comparison": {
+        "default": get_vendor_peer_comparison,
+        "screener_in": get_vendor_peer_comparison,
+        "yfinance": get_vendor_peer_comparison,
+        "sec_edgar": get_vendor_peer_comparison,
+        "alpha_vantage": get_vendor_peer_comparison,
+        "peer_analysis": get_vendor_peer_comparison,
+    },
+    "get_institutional_flow": {
+        "default": get_vendor_institutional_flow,
+        "screener_in": get_vendor_institutional_flow,
+        "yfinance": get_vendor_institutional_flow,
+        "sec_edgar": get_vendor_institutional_flow,
+        "institutional_flow": get_vendor_institutional_flow,
+    },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
@@ -139,9 +194,42 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
     },
+    "get_analyst_consensus": {
+        "default": get_vendor_analyst_consensus,
+        "yfinance": get_vendor_analyst_consensus,
+        "indian_news": get_vendor_analyst_consensus,
+        "google_news_in": get_vendor_analyst_consensus,
+        "alpha_vantage": get_vendor_analyst_consensus,
+        "analyst_consensus": get_vendor_analyst_consensus,
+    },
+    "search_market_news": {
+        "default": get_vendor_market_news,
+        "web_search": get_vendor_market_news,
+        "yfinance": get_vendor_market_news,
+        "google_news_in": get_vendor_market_news,
+        "alpha_vantage": get_vendor_market_news,
+    },
+    "get_x_sentiment": {
+        "default": get_vendor_x_sentiment,
+        "web_search": get_vendor_x_sentiment,
+        "yfinance": get_vendor_x_sentiment,
+        "alpha_vantage": get_vendor_x_sentiment,
+    },
+    "get_reddit_global_sentiment": {
+        "default": get_vendor_reddit_global,
+        "reddit": get_vendor_reddit_global,
+        "yfinance": get_vendor_reddit_global,
+        "alpha_vantage": get_vendor_reddit_global,
+    },
     # macro_data
     "get_macro_indicators": {
         "fred": get_fred_macro_data,
+    },
+    "get_macro_snapshot": {
+        "default": get_vendor_macro_snapshot,
+        "yfinance": get_vendor_macro_snapshot,
+        "macro_snapshot": get_vendor_macro_snapshot,
+        "fred": get_vendor_macro_snapshot,
     },
     # prediction_markets
     "get_prediction_markets": {
@@ -231,18 +319,20 @@ def route_to_vendor(method: str, *args, **kwargs):
     is_indian = clean_sym.endswith((".NS", ".BO")) or clean_sym.isdigit()
 
     if is_indian:
-        if method in (
-            "get_fundamentals",
-            "get_balance_sheet",
-            "get_cashflow",
-            "get_income_statement",
+        if (
+            method
+            in (
+                "get_fundamentals",
+                "get_balance_sheet",
+                "get_cashflow",
+                "get_income_statement",
+            )
+            and "screener_in" in VENDOR_METHODS[method]
         ):
-            if "screener_in" in VENDOR_METHODS[method]:
-                vendor_chain = ["screener_in"] + [v for v in vendor_chain if v != "screener_in"]
+            vendor_chain = ["screener_in"] + [v for v in vendor_chain if v != "screener_in"]
 
-        if method == "get_news":
-            if "indian_news" in VENDOR_METHODS[method]:
-                vendor_chain = ["indian_news"] + [v for v in vendor_chain if v != "indian_news"]
+        if method == "get_news" and "indian_news" in VENDOR_METHODS[method]:
+            vendor_chain = ["indian_news"] + [v for v in vendor_chain if v != "indian_news"]
 
     last_no_data: NoMarketDataError | None = None
     last_unavailable: VendorUnavailableError | None = None
@@ -260,22 +350,24 @@ def route_to_vendor(method: str, *args, **kwargs):
                 isinstance(res, str)
                 and "withheld" in res.lower()
                 and "profile fundamentals are withheld" in res.lower()
-            ):
-                if method in (
+                and method
+                in (
                     "get_fundamentals",
                     "get_balance_sheet",
                     "get_cashflow",
                     "get_income_statement",
-                ):
-                    if "screener_in" in VENDOR_METHODS[method] and vendor != "screener_in":
-                        try:
-                            screener_res = VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
-                            if screener_res and not (
-                                isinstance(screener_res, str) and "withheld" in screener_res.lower()
-                            ):
-                                return screener_res
-                        except Exception:
-                            pass
+                )
+                and "screener_in" in VENDOR_METHODS[method]
+                and vendor != "screener_in"
+            ):
+                try:
+                    screener_res = VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
+                    if screener_res and not (
+                        isinstance(screener_res, str) and "withheld" in screener_res.lower()
+                    ):
+                        return screener_res
+                except Exception:
+                    pass
             return res
         except VendorUnavailableError as e:
             logger.warning(
@@ -311,23 +403,30 @@ def route_to_vendor(method: str, *args, **kwargs):
         and "." not in clean_sym
         and not clean_sym.startswith("^")
     ):
-        if method in (
-            "get_fundamentals",
-            "get_balance_sheet",
-            "get_cashflow",
-            "get_income_statement",
+        if (
+            method
+            in (
+                "get_fundamentals",
+                "get_balance_sheet",
+                "get_cashflow",
+                "get_income_statement",
+            )
+            and "screener_in" in VENDOR_METHODS[method]
+            and "screener_in" not in vendor_chain
         ):
-            if "screener_in" in VENDOR_METHODS[method] and "screener_in" not in vendor_chain:
-                try:
-                    return VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
-                except Exception:
-                    pass
-        if method == "get_news":
-            if "indian_news" in VENDOR_METHODS[method] and "indian_news" not in vendor_chain:
-                try:
-                    return VENDOR_METHODS[method]["indian_news"](*args, **kwargs)
-                except Exception:
-                    pass
+            try:
+                return VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
+            except Exception:
+                pass
+        if (
+            method == "get_news"
+            and "indian_news" in VENDOR_METHODS[method]
+            and "indian_news" not in vendor_chain
+        ):
+            try:
+                return VENDOR_METHODS[method]["indian_news"](*args, **kwargs)
+            except Exception:
+                pass
 
     # A vendor that throttled or failed the request never said whether it has
     # the symbol, so no other vendor's "no data" can speak for the whole chain:
