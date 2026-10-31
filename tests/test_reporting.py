@@ -133,3 +133,31 @@ def test_the_header_names_the_analysts_as_users_select_them(tmp_path):
     page = (tmp_path / "complete_report.html").read_text(encoding="utf-8")
     fields = re.findall(r'<span class="field">([^<]*)</span>', page)
     assert {"market", "sentiment", "news"} <= set(fields) and "social" not in page
+
+
+@pytest.mark.unit
+def test_format_duration():
+    from tradingagents.reporting import format_duration
+
+    assert format_duration(None) == ""
+    assert format_duration(5.2) == "5.2s"
+    assert format_duration(45) == "45s"
+    assert format_duration(125) == "2m 05s"
+    assert format_duration(1125) == "18m 45s"
+    assert format_duration("3m 12s") == "3m 12s"
+
+
+@pytest.mark.unit
+def test_the_report_header_names_report_generation_time(tmp_path):
+    state = dict(_state(), report_generation_time="2m 45s")
+    header = (
+        write_report_tree(state, "NVDA", tmp_path, settings=SETTINGS, html=True)
+        .read_text(encoding="utf-8")
+        .split("## ")[0]
+    )
+    assert "- Report generation time: 2m 45s" in header
+
+    # Verify HTML page also reflects it
+    page = (tmp_path / "complete_report.html").read_text(encoding="utf-8")
+    assert "Report generation time" in page
+    assert "2m 45s" in page

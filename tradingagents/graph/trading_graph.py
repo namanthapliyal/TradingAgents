@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,7 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_tier_client, tier_provider
 from tradingagents.memory import TradingMemoryLog, settlement
 from tradingagents.memory.reflection import Reflector
-from tradingagents.reporting import write_report_tree
+from tradingagents.reporting import format_duration, write_report_tree
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -381,6 +382,7 @@ class TradingAgentsGraph:
             args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = checkpoint_thread_id
 
         # None resumes an existing checkpoint; init_agent_state starts fresh (#1249).
+        start_time = time.time()
         graph_input = self.checkpoint_input(init_agent_state)
         if self.debug:
             # A state repeats the messages before it, so each prints once (#1027).
@@ -395,6 +397,10 @@ class TradingAgentsGraph:
                     final_state.update(state)
         else:
             final_state = self.graph.invoke(graph_input, **args)
+
+        elapsed = time.time() - start_time
+        if isinstance(final_state, dict):
+            final_state["report_generation_time"] = format_duration(elapsed)
 
         self.record_decision(company_name, trade_date, final_state)
 

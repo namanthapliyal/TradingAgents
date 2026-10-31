@@ -254,6 +254,13 @@ def _group(name: str, values_html: str) -> str:
 def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, str]]:
     """The run details as (label, value HTML); every value from the run is escaped."""
     details = [("Generated", escape(datetime.now().strftime("%Y-%m-%d %H:%M")))]
+    gen_time = final_state.get("report_generation_time") or (settings or {}).get(
+        "report_generation_time"
+    )
+    if gen_time:
+        from tradingagents.reporting import format_duration
+
+        details.append(("Report generation time", escape(format_duration(gen_time))))
     if settings:
         s = settings.get
         for tier in ("deep", "quick"):

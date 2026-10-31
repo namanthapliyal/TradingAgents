@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import threading
+import time
 import warnings
 import webbrowser
 from html import escape
@@ -40,7 +41,7 @@ from tradingagents.report_html import (
     _markdown,
     render_report,
 )
-from tradingagents.reporting import _report_parts, write_report_tree
+from tradingagents.reporting import _report_parts, format_duration, write_report_tree
 
 # Suppress pandas deprecation warnings emitted by external vendor libraries (e.g. yfinance)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -170,6 +171,7 @@ class AnalysisState:
             self.report_html: str | None = None
             self.report_md: str | None = None
             self.final_decision: str | None = None
+            self.generation_time: str | None = None
             self.final_state: dict[str, Any] | None = None
             self.portfolio_html: str | None = None
             self.portfolio_results: dict[str, Any] | None = None
@@ -227,6 +229,7 @@ class AnalysisState:
                 "total_messages": len(self.messages),
                 "has_report": bool(self.report_html),
                 "final_decision": self.final_decision,
+                "generation_time": self.generation_time,
             }
 
 
@@ -276,6 +279,7 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
         "System", f"Starting multi-agent trading analysis for {ticker} ({trade_date})...", "system"
     )
     GLOBAL_STATE.add_message("Log", f"Live run log active at: {log_file}", "system")
+    start_time = time.time()
 
     try:
         # Build configuration with host flags
@@ -528,6 +532,12 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
                 rating = line.strip()
                 break
 
+        # Track execution duration and record report generation time
+        duration = time.time() - start_time
+        gen_time = format_duration(duration)
+        if isinstance(final_state, dict):
+            final_state["report_generation_time"] = gen_time
+
         # Generate HTML report
         settings = graph.run_settings()
         html_report = build_html_report(final_state, ticker, settings)
@@ -542,13 +552,14 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
         with GLOBAL_STATE.lock:
             GLOBAL_STATE.status = "completed"
             GLOBAL_STATE.final_decision = rating
+            GLOBAL_STATE.generation_time = gen_time
             GLOBAL_STATE.report_html = html_report
             GLOBAL_STATE.report_md = md_content
             GLOBAL_STATE.final_state = final_state
 
         GLOBAL_STATE.add_message(
             "System",
-            f"Analysis completed successfully! Final Decision: {rating}. Report saved to {save_folder.name}",
+            f"Analysis completed in {gen_time}! Final Decision: {rating}. Report saved to {save_folder.name}",
             "success",
         )
 

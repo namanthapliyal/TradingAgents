@@ -17,6 +17,25 @@ def analyst_names(keys) -> list[str]:
     return ["sentiment" if key == "social" else key for key in keys or []]
 
 
+def format_duration(seconds: float | int | str | None) -> str:
+    """Format duration into a human-readable string (e.g. '2m 15s' or '45s')."""
+    if seconds is None:
+        return ""
+    if isinstance(seconds, str):
+        return seconds
+    try:
+        sec = float(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    if sec < 0:
+        return "0s"
+    if sec < 60:
+        return f"{sec:.1f}s" if sec < 10 else f"{int(sec)}s"
+    mins = int(sec // 60)
+    rem_sec = int(sec % 60)
+    return f"{mins}m {rem_sec:02d}s"
+
+
 def _header(ticker: str, final_state: dict, settings: dict | None) -> str:
     """The report's title and what produced it: analysis date, version, models, analysts, vendors."""
     lines = [f"# Trading Analysis Report: {ticker}", ""]
@@ -25,6 +44,11 @@ def _header(ticker: str, final_state: dict, settings: dict | None) -> str:
     if final_state.get("final_trade_decision"):
         lines.append(f"- Rating: {run_rating(final_state)}")
     lines.append(f"- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    gen_time = final_state.get("report_generation_time") or (settings or {}).get(
+        "report_generation_time"
+    )
+    if gen_time:
+        lines.append(f"- Report generation time: {format_duration(gen_time)}")
     if settings:
         s = settings.get
         deep_provider = s("deep_think_provider") or s("llm_provider", "?")
