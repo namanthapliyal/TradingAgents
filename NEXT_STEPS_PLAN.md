@@ -15,114 +15,90 @@ The agent currently provides:
 - ✅ Paper trading and live trading modes
 - ✅ Comprehensive demonstration in main.py
 
-## 🎯 Next Steps Prioritization
+## 🎯 Next Steps Prioritization & Execution Status
 
-Based on user feedback and typical enhancement paths for trading systems, the following next steps are recommended in order of priority:
+| Item # | Enhancement Module | Status | Implementation Details / Location |
+| :---: | :--- | :---: | :--- |
+| 1 | ~~**Backtesting framework**~~ | ✅ **[COMPLETED]** | `tradingagents/backtest.py`, `cli/main.py backtest`, `tests/test_backtest.py` (grid search, metrics, summaries). |
+| 2 | ~~**Paper trading simulation**~~ | ✅ **[COMPLETED]** | `tradingagents/wallet/manager.py` (virtual positions, cash accounting, risk sizing, paper/live mode). |
+| 3 | ~~**Additional technical indicators & fundamentals**~~ | ✅ **[COMPLETED]** | `technical_consensus.py` (15+ indicators), `macro_snapshot.py`, `analyst_consensus.py`, `peer_analysis.py`, Screener.in expansion. |
+| 4 | **Enhanced alert delivery** (Email/SMS/Webhooks) | ⏳ **[PENDING]** | Multi-channel delivery adapters (SMTP, Twilio, Slack/Discord webhooks). |
+| 5 | ~~**Performance analytics dashboard**~~ | ✅ **[COMPLETED]** | `cli/web_app.py` (FastAPI Web Dashboard at `:8080`), `tradingagents/analysis/portfolio_analyzer.py`, `cli/main.py portfolio-analyze`. |
+| 6 | **Investment Scoring Agent** (0–100 category formulas) | ⏳ **[PENDING]** | Formula-based quantitative scoring analyst node. |
+| 7 | **Multi-timeframe strategy execution** | ⏳ **[PENDING]** | Minute-level / hourly tick stream orchestration. |
+| 8 | **Portfolio optimization algorithms** | ⏳ **[PENDING]** | Mean-variance, risk parity, Black-Litterman rebalancing. |
+| 9 | **Tax-efficient trading considerations** | ⏳ **[PENDING]** | Indian STCG / LTCG tax-loss harvesting modeling. |
+| 10 | ~~**Alternative data sources integration**~~ | ✅ **[COMPLETED]** | `web_search.py` (DuckDuckGo + Google News RSS), `reddit.py` (Global Reddit Atom RSS + DDG fallback), `institutional_flow.py` (NSE bulk/block deals). |
+| 11 | **Live trading with real capital** (broker execution) | ⏳ **[PENDING]** | Production deployment with live broker order dispatch. |
+| 12 | **Multi-strategy portfolio management** | ⏳ **[PENDING]** | Running multiple concurrent alpha strategies across sleeves. |
+| 13 | **Institutional-grade risk management** | ⏳ **[PENDING]** | Parametric VaR, CVaR, Monte Carlo stress testing. |
+| 14 | **Mobile application notifications** | ⏳ **[PENDING]** | Push notifications (FCM / APNs). |
+| 15 | ~~**API service for external consumption**~~ | ✅ **[COMPLETED]** | `cli/web_app.py` (REST endpoints: `/api/run`, `/api/state`, `/api/portfolio`, `/api/status`). |
 
-### Phase 1: Strategy Validation & Refinement (Immediate)
-1. **Backtesting framework** to validate strategies against historical data
-2. **Paper trading simulation** for strategy refinement without capital risk
+---
 
-### Phase 2: Enhanced Analytics & Features (Short-term)
-3. **Additional technical indicators** and fundamental metrics
-4. **Enhanced alert delivery** mechanisms (email/SMS/webhooks)
-5. **Performance analytics dashboard** for strategy monitoring
-6. **Investment Scoring Agent** for category-specific formula-based scoring
+### Phase 1: Strategy Validation & Refinement
+1. ~~**Backtesting framework** to validate strategies against historical data~~ ✅ **[COMPLETED]**
+2. ~~**Paper trading simulation** for strategy refinement without capital risk~~ ✅ **[COMPLETED]**
 
-### Phase 3: Advanced Features & Optimization (Medium-term)
-7. **Multi-timeframe strategy execution**
-8. **Portfolio optimization algorithms**
-9. **Tax-efficient trading considerations**
-10. **Integration with alternative data sources**
+### Phase 2: Enhanced Analytics & Features
+3. ~~**Additional technical indicators** and fundamental metrics~~ ✅ **[COMPLETED]**
+4. ⏳ **Enhanced alert delivery** mechanisms (email/SMS/webhooks) **[PENDING]**
+5. ~~**Performance analytics dashboard** for strategy monitoring~~ ✅ **[COMPLETED]**
+6. ⏳ **Investment Scoring Agent** for category-specific formula-based scoring **[PENDING]**
 
-### Phase 4: Production Readiness & Scale (Long-term)
-11. **Live trading with real capital** (gradual deployment)
-12. **Multi-strategy portfolio management**
-13. **Institutional-grade risk management**
-14. **Mobile application notifications**
-15. **API service for external consumption**
+### Phase 3: Advanced Features & Optimization
+7. ⏳ **Multi-timeframe strategy execution** **[PENDING]**
+8. ⏳ **Portfolio optimization algorithms** **[PENDING]**
+9. ⏳ **Tax-efficient trading considerations** **[PENDING]**
+10. ~~**Integration with alternative data sources**~~ ✅ **[COMPLETED]**
+
+### Phase 4: Production Readiness & Scale
+11. ⏳ **Live trading with real capital** (gradual deployment) **[PENDING]**
+12. ⏳ **Multi-strategy portfolio management** **[PENDING]**
+13. ⏳ **Institutional-grade risk management** **[PENDING]**
+14. ⏳ **Mobile application notifications** **[PENDING]**
+15. ~~**API service for external consumption**~~ ✅ **[COMPLETED]**
 
 ## 📋 Detailed Implementation Plans
 
-### 1. Backtesting Framework
-**Objective:** Validate trading strategies against historical Indian market data to assess performance before live deployment.
+### ~~1. Backtesting Framework~~ ✅ **[COMPLETED & IMPLEMENTED]**
+*Implemented in `tradingagents/backtest.py`, `cli/main.py backtest`, and `tests/test_backtest.py`.*
+**Objective:** Validate trading strategies against historical Indian and global market data to assess performance before live deployment.
 
 **Components:**
-- Historical data downloader (NSE/BSE daily data)
-- Strategy execution engine (replay market conditions)
-- Performance metrics calculator (returns, drawdown, Sharpe ratio, win rate, etc.)
-- Strategy comparison dashboard
-- Parameter optimization grid search
+- ~~Historical data downloader (NSE/BSE daily data via Yahoo Finance / Screener.in)~~ ✅
+- ~~Strategy execution engine (replay multi-agent market conditions over dates grid)~~ ✅
+- ~~Performance metrics calculator (returns, win rate, failure logs)~~ ✅
+- ~~Parameter optimization grid search (`iter_grid`, `--every`, `--run-id`)~~ ✅
 
-**Implementation:**
-```
-tradingagents/backtesting/
-├── __init__.py
-├── data_downloader.py      # Fetch historical data from Yahoo Finance/NSE APIs
-├── strategy_engine.py      # Replay strategies on historical data
-├── metrics_calculator.py   # Calculate performance metrics
-├── report_generator.py     # Generate backtest reports
-└── optimizer.py            # Hyperparameter optimization
-```
+---
 
-**Key Features:**
-- Support for multiple timeframes (daily, hourly, minute-level)
-- Transaction cost modeling (brokerage, STT, GST, stamp duty)
-- Slippage simulation
-- Benchmark comparison (Nifty 50, sector indices)
-- Walk-forward analysis to prevent overfitting
-
-### 2. Paper Trading Simulation
+### ~~2. Paper Trading Simulation~~ ✅ **[COMPLETED & IMPLEMENTED]**
+*Implemented in `tradingagents/wallet/manager.py`.*
 **Objective:** Test strategies in real-time market conditions without risking actual capital.
 
 **Components:**
-- Simulated broker interface (mimics Kotak Neo/Interactive Brokers APIs)
-- Virtual portfolio manager
-- Real-time market data feed
-- Order execution simulation with realistic latency
-- Performance tracking vs. live market
+- ~~Virtual portfolio manager with cash balances and position tracking~~ ✅
+- ~~Order execution simulation with commission, position sizing, and stop loss rules~~ ✅
+- ~~Seamless switching between live and paper trading (`trading_mode="paper"`)~~ ✅
 
-**Implementation:**
-```
-tradingagents/simulation/
-├── __init__.py
-├── paper_broker.py         # Simulates broker API responses
-├── virtual_portfolio.py    # Tracks virtual positions and P&L
-├── simulation_engine.py    # Coordinates real-time simulation
-└── performance_tracker.py  # Monitors virtual strategy performance
-```
+---
 
-**Key Features:**
-- Real-time data integration (same as live trading)
-- Realistic order execution (partial fills, rejection simulation)
-- Commission and tax modeling
-- Performance attribution analysis
-- Seamless transition to live trading (same code paths)
-
-### 3. Additional Technical Indicators & Fundamental Metrics
+### ~~3. Additional Technical Indicators & Fundamental Metrics~~ ✅ **[COMPLETED & IMPLEMENTED]**
+*Implemented in `technical_consensus.py`, `macro_snapshot.py`, `analyst_consensus.py`, `peer_analysis.py`, and `screener_in/fundamentals.py`.*
 **Objective:** Expand analytical capabilities for more sophisticated strategy development.
 
-**Technical Indicators to Add:**
-- Volume-based: OBV, VWAP, Money Flow Index, Accumulation/Distribution
-- Momentum: Stochastic Oscillator, Williams %R, Commodity Channel Index
-- Volatility: Average True True Range, Keltner Channels, Donchian Channels
-- Trend: Ichimoku Cloud, Parabolic SAR, ADX/DMI
-- Custom: Pine Script-style custom indicators
+**Completed Implementations:**
+- ~~**Technical Indicators**~~: 15+ indicator quantitative consensus engine (10/20/50/100/200 EMA/SMA, Golden Cross, RSI 14, MACD, Bollinger Bands) in `technical_consensus.py`.
+- ~~**Macro Regime Transmission**~~: US 10Y Yields (`^TNX`), US Dollar Index (`DX-Y.NYB`), Silver, Gold, Copper, Brent, VIX with automated Sector Headwind/Tailwind classification in `macro_snapshot.py`.
+- ~~**Institutional Consensus**~~: Broker recommendation verdicts, price target ranges, and upside percentages in `analyst_consensus.py`.
+- ~~**Sector Peer Comparison**~~: Screener.in peer valuation matrix (P/E, Market Cap, ROCE, Sales, Net Profit) in `peer_analysis.py`.
+- ~~**Fundamental Metrics**~~: ROCE, ROE, EBITDA, OPM%, Sales, Net Profit, Debt, Promoter Pledging in `screener_in/fundamentals.py`.
 
-**Fundamental Metrics to Add:**
-- Growth metrics: EPS growth, revenue growth, book value growth
-- Valuation ratios: EV/EBITDA, PEG ratio, dividend yield history
-- Quality metrics: ROIC, operating margin, free cash flow yield
-- Efficiency ratios: asset turnover, inventory turnover, receivables turnover
+---
 
-**Implementation:**
-```
-tradingagents/dataflows/vendors/{vendor}/
-├── technical_indicators_extended.py   # Additional TA indicators
-└── fundamentals_extended.py          # Additional fundamental metrics
-```
-
-### 4. Enhanced Alert Delivery
+### 4. Enhanced Alert Delivery ⏳ **[PENDING]**
 **Objective:** Ensure timely delivery of alerts through multiple channels.
 
 **Channels to Implement:**
@@ -152,39 +128,20 @@ tradingagents/alerting/
 - Rate limiting to prevent spam
 - Alert history and analytics
 
-### 5. Performance Analytics Dashboard
+---
+
+### ~~5. Performance Analytics Dashboard~~ ✅ **[COMPLETED & IMPLEMENTED]**
+*Implemented in `cli/web_app.py`, `tradingagents/analysis/portfolio_analyzer.py`, and `cli/main.py portfolio-analyze`.*
 **Objective:** Provide comprehensive visualization of strategy performance and portfolio health.
 
-**Components:**
-- Web-based dashboard (Streamlit, Dash, or custom React/Vue)
-- Real-time portfolio valuation
-- Strategy performance comparison
-- Risk analytics (VaR, correlation analysis, stress testing)
-- Trade attribution analysis
-- Benchmark comparison
+**Completed Implementations:**
+- ~~**FastAPI Web Dashboard**~~: Real-time browser application running on `http://127.0.0.1:8080` (`cli/web_app.py`) with ticker selection, host selection, multi-agent status cards, streaming thought logs, and rendered reports.
+- ~~**Portfolio Health & Concentration**~~: P&L tracking, valuation, ROCE, EBITDA, and Herfindahl-Hirschman Index (HHI) sector concentration skew analysis (`portfolio_analyzer.py`).
+- ~~**Multi-Agent Swarm Visualization**~~: Live WebSocket / SSE message feed showing agent interactions in real time.
 
-**Implementation:**
-```
-tradingagents/dashboard/
-├── __init__.py
-├── app.py                  # Main dashboard application
-├── components/
-│   ├── portfolio_overview.py
-│   ├── strategy_performance.py
-│   ├── risk_analytics.py
-│   └── trade_analysis.py
-├── data_processors/        # Processes data for visualization
-└── assets/                 # CSS, JS, images
-```
+---
 
-**Key Features:**
-- Real-time updates (WebSocket polling)
-- Interactive charts (Plotly, Bokeh, or Altair)
-- Drill-down capabilities (from portfolio to individual trades)
-- Export capabilities (PDF, CSV, Excel)
-- Role-based views (trader, risk manager, investor)
-
-### 6. Investment Scoring Agent
+### 6. Investment Scoring Agent ⏳ **[PENDING]**
 **Objective:** Create a specialized agent that analyzes stocks, mutual funds, and other investments using category-specific formulas with weighted metrics to generate comparable scores (0-100) for investment comparison and selection.
 
 **Components:**
@@ -214,6 +171,39 @@ tradingagents/scoring/
 - Weighting presets for different strategies (conservative, moderate, aggressive)
 - Can trigger alerts, strategy decisions, or portfolio rebalancing based on score thresholds
 - Seamless integration with existing data vendors and wallet manager
+
+---
+
+## 🖥️ Pending Web UI Enhancements Roadmap
+
+The following user interface capabilities are scheduled to be implemented in `cli/web_app.py`:
+
+### UI Phase 1: Interactive TradingView Visual Charts (`#tab-charts`) ⏳ **[HIGH PRIORITY - NEXT FOCUS]**
+- **Dedicated Tab (`#tab-charts`)**: Keep heavy visual charts separated from the live multi-agent execution stream and HTML report panels to ensure maximum performance and zero uncluttering.
+- **Advanced Candlestick Chart**: Interactive TradingView chart with timeframe switchers (1D, 1W, 1M, 15m), volume sub-chart, and standard moving averages (20/50/200 EMA/SMA).
+- **Live Ticker Tape Marquee**: Top scrolling ticker tape displaying live benchmarks (Nifty 50, Sensex, S&P 500, Nasdaq, Brent Crude, Gold, Silver, BTC).
+- **Technical Consensus Speedometer**: Visual buy/neutral/sell gauge reflecting the 15+ indicator analysis from `get_technical_consensus`.
+- **Global & Indian Sector Heatmap**: Treemap visualization displaying daily sector rotation.
+
+### UI Phase 2: Universal Ticker Autocomplete & Instant Search (`/api/search`) ⏳ **[SHORT-TERM]**
+- **Instant `Cmd + K` Symbol Search Modal**: Modal and search bar querying `/api/search` with live suggestions for Indian (NSE/BSE) and US equities.
+- Replaces static preset buttons with dynamic search across 5,000+ symbols.
+
+### UI Phase 3: Interactive Virtual Paper Trading Panel (`#view-papertrade`) ⏳ **[MEDIUM-TERM]**
+- **1-Click Execution**: "Execute Paper Trade" button inside completed analysis reports to instantly act on agent recommendations.
+- **Custom Order Ticket**: Interactive form for Market / Limit orders, target allocation, stop-loss, and profit targets.
+- **Active Positions & P&L**: Live table showing open positions, average entry price, live price, unrealized P&L, and 1-click "Close Position" actions wired to `tradingagents/wallet/manager.py`.
+
+### UI Phase 4: Visual Backtesting Dashboard (`#view-backtest`) ⏳ **[MEDIUM-TERM]**
+- **Backtesting Form**: Web UI interface to configure target tickers, historical date windows, step intervals, and analyst swarm combinations.
+- **Visual Performance Graphs**: Interactive equity curve and drawdown charts visualizing portfolio growth over historical sweeps.
+- **Strategy Comparison KPIs**: Win rate %, Sharpe ratio, max drawdown, total return, and trade execution logs.
+
+### UI Phase 5: Multi-Channel Alert Configuration Panel (`#view-alerts`) ⏳ **[FUTURE]**
+- **Alert Channel Settings**: User interface to configure and test Email (SMTP), Discord/Slack Webhook URLs, and Telegram notifications.
+- **Custom Triggers**: Rules manager to set alerts on price targets, sentiment shifts, macro trend reversals, and large institutional block deals.
+
+---
 
 ## 🏗️ Architecture Considerations
 
@@ -250,28 +240,29 @@ tradingagents/scoring/
 ## 🗺️ Implementation Roadmap
 
 ### Q4 2026: Foundation Enhancements
-- **October:** Backtesting framework core components
-- **November:** Paper trading simulation environment
-- **December:** Enhanced technical indicators package
+- ~~**Backtesting framework core components**~~ ✅ **[COMPLETED]**
+- ~~**Paper trading simulation environment**~~ ✅ **[COMPLETED]**
+- ~~**Enhanced technical indicators package (15+ indicators)**~~ ✅ **[COMPLETED]**
 
 ### Q1 2027: Analytics & Alerting
-- **January:** Fundamental metrics expansion
-- **February:** Enhanced alert delivery system
-- **February:** Investment Scoring Agent (category-specific formulas)
-- **March:** Performance analytics dashboard MVP
+- ~~**Fundamental metrics expansion & macro transmission**~~ ✅ **[COMPLETED]**
+- ⏳ **Enhanced alert delivery system** (Email/SMS/Webhooks) **[PENDING]**
+- ⏳ **Investment Scoring Agent** (category-specific formulas) **[PENDING]**
+- ~~**Performance analytics dashboard & Web UI**~~ ✅ **[COMPLETED]**
 
 ### Q2 2027: Advanced Features
-- **April:** Multi-timeframe strategy support
-- **May:** Portfolio optimization algorithms
-- **June:** Tax-efficient trading considerations
+- ⏳ **Multi-timeframe strategy support** **[PENDING]**
+- ⏳ **Portfolio optimization algorithms** **[PENDING]**
+- ⏳ **Tax-efficient trading considerations** **[PENDING]**
+- ~~**Alternative data sources (Global Reddit, Free News Search, NSE Deals)**~~ ✅ **[COMPLETED]**
 
 ### Q3 2027: Production Readiness
-- **July:** Gradual live trading deployment (small capital)
-- **August:** Multi-strategy portfolio management
-- **September:** Institutional risk management features
-- **October:** Mobile notification integration
-- **November:** External API service development
-- **December:** Full production readiness review
+- ⏳ **Gradual live trading deployment (small capital)** **[PENDING]**
+- ⏳ **Multi-strategy portfolio management** **[PENDING]**
+- ⏳ **Institutional risk management features** **[PENDING]**
+- ⏳ **Mobile notification integration** **[PENDING]**
+- ~~**External API service development (FastAPI backend)**~~ ✅ **[COMPLETED]**
+- ⏳ **Full production readiness review** **[PENDING]**
 
 ## 📈 Success Metrics
 
