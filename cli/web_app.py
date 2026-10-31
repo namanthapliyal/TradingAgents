@@ -32,6 +32,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from cli.display import classify_message_type
 from tradingagents.default_config import build_default_config
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.reporting import format_duration
 from tradingagents.report_html import (
     _COMPANY,
     _CSS,
