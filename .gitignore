@@ -307,3 +307,13 @@ tmp/
 Thumbs.db
 desktop.ini
 
+# -------------------------------------------------------------
+# Local AI Agent Configurations, Skills & Prompts
+# -------------------------------------------------------------
+.agents/
+.agent/
+.gemini/
+.claude/
+.cursor/
+
+
