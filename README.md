@@ -235,11 +235,12 @@ import os, time, subprocess, threading, re, httpx
 from fastapi import FastAPI, Request, Response, HTTPException, status
 import uvicorn
 
-# 2. Start Ollama with single-model memory safeguard
+# 2. Start Ollama with single-model memory safeguard and 16k context window
 env = os.environ.copy()
 env["OLLAMA_HOST"] = "127.0.0.1:11434"
 env["OLLAMA_MAX_LOADED_MODELS"] = "1"
 env["OLLAMA_NUM_PARALLEL"] = "1"
+env["OLLAMA_CONTEXT_LENGTH"] = "16384"
 subprocess.Popen(["ollama", "serve"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(5)
 
@@ -259,8 +260,23 @@ async def proxy(request: Request, path: str):
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
     if auth_header.split(" ", 1)[1].strip() != API_SECRET_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid API Secret Token.")
+    
+    body = await request.body()
+    # Ensure 16k context window for chat completions on Colab Ollama
+    if request.method == "POST" and ("chat/completions" in path or "generate" in path):
+        try:
+            import json
+            data = json.loads(body)
+            options = data.setdefault("options", {})
+            options.setdefault("num_ctx", 16384)
+            data.setdefault("num_ctx", 16384)
+            body = json.dumps(data).encode("utf-8")
+        except Exception:
+            pass
+
     url = httpx.URL(path=f"/{path}", query=request.url.query.encode("utf-8"))
-    req = client.build_request(request.method, url, headers=dict(request.headers), content=await request.body())
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("content-length", "host")}
+    req = client.build_request(request.method, url, headers=headers, content=body)
     res = await client.send(req, stream=True)
     return Response(content=await res.aread(), status_code=res.status_code, headers=dict(res.headers))
 

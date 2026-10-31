@@ -150,3 +150,21 @@ def test_deepseek_r1_capabilities():
     caps = get_capabilities("deepseek-r1:14b")
     assert caps.supports_tool_choice is False
     assert caps.requires_reasoning_content_roundtrip is True
+
+
+@pytest.mark.unit
+def test_local_compatible_payload_num_ctx(monkeypatch):
+    monkeypatch.delenv("COLAB_NUM_CTX", raising=False)
+    monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("LOCAL_NUM_CTX", raising=False)
+
+    llm = LocalCompatibleChatOpenAI(model="qwen3:8b", api_key="fake")
+    payload = llm._get_request_payload("hello")
+    assert payload.get("extra_body", {}).get("num_ctx") == 16384
+    assert payload.get("extra_body", {}).get("options", {}).get("num_ctx") == 16384
+
+    # With custom env var override
+    monkeypatch.setenv("COLAB_NUM_CTX", "32768")
+    payload_custom = llm._get_request_payload("hello")
+    assert payload_custom.get("extra_body", {}).get("num_ctx") == 32768
+    assert payload_custom.get("extra_body", {}).get("options", {}).get("num_ctx") == 32768

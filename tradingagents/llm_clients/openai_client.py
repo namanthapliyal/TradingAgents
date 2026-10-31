@@ -53,13 +53,37 @@ class NormalizedChatOpenAI(ChatOpenAI):
 
 class LocalCompatibleChatOpenAI(NormalizedChatOpenAI):
     """OpenAI-compatible client for arbitrary local servers (LM Studio, vLLM,
-    llama.cpp via the generic ``openai_compatible`` provider).
+    llama.cpp via the generic ``openai_compatible`` provider, Ollama, or Colab).
 
     Their tool-calling support varies, and many reject the object-form
     ``tool_choice`` langchain sends for function-calling structured output. Bind
     the schema as a tool but don't force tool_choice, so structured output works
     across local servers regardless of the model ID's capabilities (#1057).
     """
+
+    def _get_request_payload(self, input_, *, stop=None, **kwargs):
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        extra_body = payload.setdefault("extra_body", {})
+        ctx_env = (
+            os.getenv("COLAB_NUM_CTX")
+            or os.getenv("OLLAMA_NUM_CTX")
+            or os.getenv("LOCAL_NUM_CTX")
+        )
+        num_ctx = int(ctx_env) if ctx_env and ctx_env.isdigit() else 16384
+        options = extra_body.setdefault("options", {})
+        options.setdefault("num_ctx", num_ctx)
+        extra_body.setdefault("num_ctx", num_ctx)
+
+        # Preserve reasoning_content if present in outgoing assistant messages
+        outgoing = payload.get("messages", [])
+        for message_dict, message in zip(outgoing, _input_to_messages(input_), strict=False):
+            if not isinstance(message, AIMessage):
+                continue
+            reasoning = message.additional_kwargs.get("reasoning_content")
+            if reasoning is not None:
+                message_dict["reasoning_content"] = reasoning
+
+        return payload
 
     def with_structured_output(self, schema, *, method=None, **kwargs):
         resolved = method or get_capabilities(self.model_name).preferred_structured_method
