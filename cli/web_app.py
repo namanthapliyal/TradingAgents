@@ -45,6 +45,17 @@ from tradingagents.reporting import _report_parts, write_report_tree
 # Suppress pandas deprecation warnings emitted by external vendor libraries (e.g. yfinance)
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
+warnings.filterwarnings("ignore", message=".*inplace.*")
+try:
+    import pandas as pd
+
+    if hasattr(pd, "errors") and hasattr(pd.errors, "PandasDeprecationWarning"):
+        warnings.filterwarnings("ignore", category=pd.errors.PandasDeprecationWarning)
+    if hasattr(pd, "errors") and hasattr(pd.errors, "Pandas4Warning"):
+        warnings.filterwarnings("ignore", category=pd.errors.Pandas4Warning)
+except Exception:
+    pass
 
 
 def build_html_report(final_state: dict, ticker: str, settings: dict | None = None) -> str:

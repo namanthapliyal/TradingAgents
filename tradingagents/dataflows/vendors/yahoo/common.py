@@ -2,7 +2,9 @@
 
 import logging
 import time
+import warnings
 
+import pandas as pd
 import yfinance as yf
 from yfinance.exceptions import YFPricesMissingError, YFRateLimitError
 
@@ -12,6 +14,15 @@ from tradingagents.dataflows.net import vendor_reachable
 logger = logging.getLogger(__name__)
 
 YAHOO_HOST = "https://query2.finance.yahoo.com"
+
+# yfinance's __init__.py forces DeprecationWarning to 'default' for module='^yfinance',
+# which causes pandas 3.x Pandas4Warning deprecations (e.g. inplace=True) to spam stderr.
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
+warnings.filterwarnings("ignore", message=".*inplace.*")
+if hasattr(pd, "errors") and hasattr(pd.errors, "PandasDeprecationWarning"):
+    warnings.filterwarnings("ignore", category=pd.errors.PandasDeprecationWarning)
+if hasattr(pd, "errors") and hasattr(pd.errors, "Pandas4Warning"):
+    warnings.filterwarnings("ignore", category=pd.errors.Pandas4Warning)
 
 
 def raise_for_empty(symbol: str, canonical: str, what: str) -> None:

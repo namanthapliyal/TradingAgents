@@ -9,7 +9,17 @@ from dotenv import find_dotenv, load_dotenv
 # Suppress noisy pandas 2.2+ / 3.0+ deprecation warnings emitted by third-party vendor libraries (e.g. yfinance)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
 warnings.filterwarnings("ignore", message=".*inplace.*")
+try:
+    import pandas as pd
+
+    if hasattr(pd, "errors") and hasattr(pd.errors, "PandasDeprecationWarning"):
+        warnings.filterwarnings("ignore", category=pd.errors.PandasDeprecationWarning)
+    if hasattr(pd, "errors") and hasattr(pd.errors, "Pandas4Warning"):
+        warnings.filterwarnings("ignore", category=pd.errors.Pandas4Warning)
+except Exception:
+    pass
 
 # Load .env at package import so DEFAULT_CONFIG's env-var overlay and every LLM
 # client see the user's keys whichever entry point started the process.
