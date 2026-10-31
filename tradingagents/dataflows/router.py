@@ -52,6 +52,7 @@ from tradingagents.dataflows.vendors.technical_consensus import (
     compute_technical_consensus as get_vendor_technical_consensus,
 )
 from tradingagents.dataflows.vendors.web_search import (
+    search_duckduckgo,
     search_market_news as get_vendor_market_news,
     search_x_sentiment as get_vendor_x_sentiment,
 )
@@ -69,6 +70,26 @@ from tradingagents.dataflows.vendors.yahoo.market import (
 from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance, get_news_yfinance
 
 logger = logging.getLogger(__name__)
+
+
+def get_news_web_search(ticker: str, start_date: str = "", end_date: str = "") -> str:
+    """Fallback news search using public search engine when feed coverage is absent."""
+    clean_ticker = ticker.replace(".NS", "").replace(".BO", "").strip()
+    query = f"{clean_ticker} stock news financial earnings"
+    results = search_duckduckgo(query, limit=8)
+    if not results:
+        return f"No news found for {ticker} across news feeds and web search."
+
+    lines = [f"## Web News Search Results for {clean_ticker}:\n"]
+    for r in results:
+        lines.append(f"### {r.get('title', 'Market News')}")
+        if r.get("snippet"):
+            lines.append(f"{r['snippet']}")
+        if r.get("link"):
+            lines.append(f"Link: {r['link']}")
+        lines.append("")
+    return "\n".join(lines)
+
 
 # Tools organized by category
 TOOLS_CATEGORIES = {
@@ -184,6 +205,7 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_news,
         "indian_news": get_news_indian,
         "google_news_in": get_news_indian,
+        "web_search": get_news_web_search,
         "yfinance": get_news_yfinance,
     },
     "get_global_news": {
@@ -395,11 +417,10 @@ def route_to_vendor(method: str, *args, **kwargs):
             failed = e
             continue
 
-    # If all configured vendors reported NoMarketData for a bare symbol,
+    # If all configured vendors reported NoMarketData or were unavailable for a bare symbol,
     # try Indian vendors (screener_in / indian_news) before concluding no data exists.
     if (
-        last_no_data is not None
-        and not is_indian
+        (last_no_data is not None or last_unavailable is not None)
         and "." not in clean_sym
         and not clean_sym.startswith("^")
     ):
@@ -415,18 +436,41 @@ def route_to_vendor(method: str, *args, **kwargs):
             and "screener_in" not in vendor_chain
         ):
             try:
-                return VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
+                res = VENDOR_METHODS[method]["screener_in"](*args, **kwargs)
+                if res and not (isinstance(res, str) and "not covered" in res.lower()):
+                    return res
             except Exception:
                 pass
-        if (
-            method == "get_news"
-            and "indian_news" in VENDOR_METHODS[method]
-            and "indian_news" not in vendor_chain
-        ):
-            try:
-                return VENDOR_METHODS[method]["indian_news"](*args, **kwargs)
-            except Exception:
-                pass
+        if method == "get_news":
+            if "indian_news" in VENDOR_METHODS[method] and "indian_news" not in vendor_chain:
+                try:
+                    res = VENDOR_METHODS[method]["indian_news"](*args, **kwargs)
+                    if res and not (isinstance(res, str) and "no recent" in res.lower()):
+                        return res
+                except Exception:
+                    pass
+            if "web_search" in VENDOR_METHODS[method] and "web_search" not in vendor_chain:
+                try:
+                    res = VENDOR_METHODS[method]["web_search"](*args, **kwargs)
+                    if res and not (isinstance(res, str) and "no news found" in res.lower()):
+                        return res
+                except Exception:
+                    pass
+
+    # Universal fallback for get_news: if configured feeds had no coverage,
+    # fall back to public web search before declaring news unavailable.
+    if (
+        method == "get_news"
+        and (last_no_data is not None or last_unavailable is not None)
+        and "web_search" in VENDOR_METHODS[method]
+        and "web_search" not in vendor_chain
+    ):
+        try:
+            res = VENDOR_METHODS[method]["web_search"](*args, **kwargs)
+            if res and not (isinstance(res, str) and "no news found" in res.lower()):
+                return res
+        except Exception:
+            pass
 
     # A vendor that throttled or failed the request never said whether it has
     # the symbol, so no other vendor's "no data" can speak for the whole chain:

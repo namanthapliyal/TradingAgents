@@ -260,3 +260,18 @@ class TestScreenerSignatures:
             # Missing metrics should cleanly output N/A, never trailing whitespace
             assert "Sector: N/A" in res
             assert "Book Value (INR): \n" not in res
+
+    def test_news_falls_back_to_indian_news_when_yahoo_fails(self):
+        import tradingagents.dataflows.router as router
+        from tradingagents.dataflows.errors import VendorUnavailableError
+
+        def mock_yf(*args, **kwargs):
+            raise VendorUnavailableError("No news")
+
+        def mock_indian(*args, **kwargs):
+            return "## Indian Financial News for VEDPOWER:\n### Earnings Beat"
+
+        with patch.dict(router.VENDOR_METHODS["get_news"], {"yfinance": mock_yf, "indian_news": mock_indian}):
+            out = router.route_to_vendor("get_news", "VEDPOWER", "2026-10-24", "2026-10-31")
+            assert "Indian Financial News for VEDPOWER" in out
+            assert "Earnings Beat" in out
