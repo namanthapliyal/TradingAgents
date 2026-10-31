@@ -349,9 +349,9 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
                     msg_type, content = classify_message_type(message)
                     if content and content.strip():
                         sender = getattr(message, "name", None) or msg_type
-                        GLOBAL_STATE.add_message(
-                            str(sender).upper(), content.strip()[:300], "message"
-                        )
+                        text = content.strip()
+                        preview = text[:800] + "..." if len(text) > 800 else text
+                        GLOBAL_STATE.add_message(str(sender).upper(), preview, "message")
 
                 if chunk and isinstance(chunk, dict):
                     final_state = chunk
