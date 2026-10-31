@@ -53,7 +53,7 @@ def get_stock_data(
 def get_indicators(
     symbol: Annotated[str, InjectedState("company_of_interest")],
     indicator: Annotated[str, "technical indicator to get the analysis and report of"],
-    curr_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"],
+    curr_date: Annotated[str, "The current trading date you are trading on, YYYY-mm-dd"] = "",
     look_back_days: Annotated[int, "how many days to look back"] = 30,
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
@@ -85,7 +85,7 @@ def get_indicators(
 @tool
 def get_verified_market_snapshot(
     symbol: Annotated[str, InjectedState("company_of_interest")],
-    curr_date: Annotated[str, "the current trading date, YYYY-mm-dd"],
+    curr_date: Annotated[str, "the current trading date, YYYY-mm-dd"] = "",
     look_back_days: Annotated[
         int, "number of recent trading rows to include for sanity-checking"
     ] = 30,
@@ -217,7 +217,7 @@ def get_news(
 
 @tool
 def get_global_news(
-    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"] = "",
     look_back_days: Annotated[
         int | None, "Days to look back; omit to use the configured default"
     ] = None,
@@ -267,7 +267,7 @@ def get_macro_indicators(
         "'euro_hicp', 'euro_core_hicp', 'euro_real_gdp', 'germany_10y', "
         "'france_10y', 'eur_usd', or a raw FRED series ID such as 'CPIAUCSL'.",
     ],
-    curr_date: Annotated[str, "Current date in yyyy-mm-dd format; the end of the window"],
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format; the end of the window"] = "",
     look_back_days: Annotated[
         int | None, "Trailing window length in days; omit for a 1-year window"
     ] = None,

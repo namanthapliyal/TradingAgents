@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import threading
+import warnings
 import webbrowser
 from html import escape
 from http import HTTPStatus
@@ -40,6 +41,10 @@ from tradingagents.report_html import (
     render_report,
 )
 from tradingagents.reporting import _report_parts, write_report_tree
+
+# Suppress pandas deprecation warnings emitted by external vendor libraries (e.g. yfinance)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 def build_html_report(final_state: dict, ticker: str, settings: dict | None = None) -> str:
@@ -387,6 +392,7 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
 
                     if (
                         chunk.get("investment_plan")
+                        and str(chunk.get("investment_plan")).strip()
                         and GLOBAL_STATE.agent_statuses.get("researcher") != "completed"
                     ):
                         GLOBAL_STATE.update_agent("researcher", "completed")
@@ -402,6 +408,7 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
 
                     if (
                         chunk.get("trader_investment_plan")
+                        and str(chunk.get("trader_investment_plan")).strip()
                         and GLOBAL_STATE.agent_statuses.get("trader") != "completed"
                     ):
                         GLOBAL_STATE.update_agent("trader", "completed")
@@ -419,22 +426,38 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
 
                     if (
                         chunk.get("risk_debate_state")
+                        and GLOBAL_STATE.agent_statuses.get("trader") == "completed"
                         and GLOBAL_STATE.agent_statuses.get("risk_mgmt") != "completed"
                     ):
-                        GLOBAL_STATE.update_agent("risk_mgmt", "completed")
-                        GLOBAL_STATE.add_message(
-                            "RISK",
-                            "Phase IV Complete: Risk Management committee concluded.",
-                            "success",
+                        risk_state = chunk["risk_debate_state"]
+                        has_content = any(
+                            bool(str(risk_state.get(k, "")).strip())
+                            for k in (
+                                "aggressive_history",
+                                "conservative_history",
+                                "neutral_history",
+                                "history",
+                            )
                         )
-                        GLOBAL_STATE.update_agent("portfolio_manager", "in_progress")
-                        GLOBAL_STATE.add_message(
-                            "Pipeline",
-                            "Phase V: Portfolio Manager rendering final trade decision...",
-                            "system",
-                        )
+                        if has_content:
+                            GLOBAL_STATE.update_agent("risk_mgmt", "completed")
+                            GLOBAL_STATE.add_message(
+                                "RISK",
+                                "Phase IV Complete: Risk Management committee concluded.",
+                                "success",
+                            )
+                            GLOBAL_STATE.update_agent("portfolio_manager", "in_progress")
+                            GLOBAL_STATE.add_message(
+                                "Pipeline",
+                                "Phase V: Portfolio Manager rendering final trade decision...",
+                                "system",
+                            )
 
-                    if chunk.get("final_trade_decision"):
+                    if (
+                        chunk.get("final_trade_decision")
+                        and str(chunk.get("final_trade_decision")).strip()
+                        and GLOBAL_STATE.agent_statuses.get("portfolio_manager") != "completed"
+                    ):
                         GLOBAL_STATE.update_agent("portfolio_manager", "completed")
                         GLOBAL_STATE.add_message(
                             "PORTFOLIO MGR",

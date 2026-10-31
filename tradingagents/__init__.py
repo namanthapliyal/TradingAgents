@@ -2,7 +2,14 @@
 
 __version__ = "0.6.0"
 
+import warnings
+
 from dotenv import find_dotenv, load_dotenv
+
+# Suppress noisy pandas 2.2+ / 3.0+ deprecation warnings emitted by third-party vendor libraries (e.g. yfinance)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*inplace.*")
 
 # Load .env at package import so DEFAULT_CONFIG's env-var overlay and every LLM
 # client see the user's keys whichever entry point started the process.
