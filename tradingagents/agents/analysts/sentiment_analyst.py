@@ -34,6 +34,8 @@ from tradingagents.agents.tools import get_news
 from tradingagents.dataflows.vendors.reddit import (
     CRYPTO_SUBREDDITS,
     DEFAULT_SUBREDDITS,
+    INDIAN_SUBREDDITS,
+    fetch_reddit_global,
     fetch_reddit_posts,
     subreddits_for,
 )
@@ -75,6 +77,12 @@ def create_sentiment_analyst(llm):
         reddit_block = fetch_reddit_posts(
             ticker, subreddits, start_date=start_date, end_date=end_date, screen=screen
         )
+        if "no reddit posts found" in reddit_block.lower() or "unavailable" in reddit_block.lower():
+            global_posts = fetch_reddit_global(
+                "", ticker=ticker, limit=6, start_date=start_date, end_date=end_date
+            )
+            if global_posts and "<no reddit discussions found" not in global_posts.lower():
+                reddit_block = f"{reddit_block}\n\n{global_posts}"
         x_block = search_x_sentiment("", ticker=ticker, limit=6)
 
         system_message = _build_system_message(
@@ -143,6 +151,8 @@ def _build_system_message(
     """Assemble the sentiment-analyst system message with structured data blocks."""
     if subreddits == DEFAULT_SUBREDDITS:
         character = "r/wallstreetbets is often contrarian/exuberant; r/stocks more measured; r/investing longer-term"
+    elif subreddits == INDIAN_SUBREDDITS:
+        character = "r/IndianStreetBets is retail trader momentum/sentiment; r/IndianStockMarket is swing & equity discussion; r/IndiaInvestments is long-term fundamentals"
     elif len(subreddits) > len(CRYPTO_SUBREDDITS):
         character = f"r/{subreddits[0]} leans toward the coin's holders; r/CryptoCurrency and r/CryptoMarkets are broader"
     else:

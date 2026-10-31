@@ -107,9 +107,20 @@ def subreddits_for(ticker: str) -> tuple[str, ...]:
         u.endswith((".NS", ".BO"))
         or u.isdigit()
         or u.endswith("BEES")
-        or u in {"MON100", "CPSEETF"}
+        or u in {"MON100", "CPSEETF", "JUNIORBEES"}
     ):
         return INDIAN_SUBREDDITS
+
+    # Check if resolved exchange or instrument is Indian
+    try:
+        from tradingagents.agents.context import resolve_instrument_identity
+
+        identity = resolve_instrument_identity(u)
+        exchange = (identity.get("exchange") or "").lower()
+        if "india" in exchange or "nse" in exchange or "bse" in exchange:
+            return INDIAN_SUBREDDITS
+    except Exception:
+        pass
 
     return DEFAULT_SUBREDDITS
 
