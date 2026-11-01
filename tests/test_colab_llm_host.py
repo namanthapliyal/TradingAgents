@@ -38,6 +38,8 @@ def test_default_config_colab_preset(monkeypatch):
     monkeypatch.delenv("TRADINGAGENTS_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_QUICK_THINK_LLM", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_DEEP_THINK_LLM", raising=False)
+    monkeypatch.delenv("COLAB_QUICK_THINK_LLM", raising=False)
+    monkeypatch.delenv("COLAB_DEEP_THINK_LLM", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_LLM_BACKEND_URL", raising=False)
 
     cfg = build_default_config()
@@ -54,6 +56,8 @@ def test_default_config_local_preset(monkeypatch):
     monkeypatch.delenv("TRADINGAGENTS_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_QUICK_THINK_LLM", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_DEEP_THINK_LLM", raising=False)
+    monkeypatch.delenv("COLAB_QUICK_THINK_LLM", raising=False)
+    monkeypatch.delenv("COLAB_DEEP_THINK_LLM", raising=False)
     monkeypatch.delenv("TRADINGAGENTS_LLM_BACKEND_URL", raising=False)
 
     cfg = build_default_config()

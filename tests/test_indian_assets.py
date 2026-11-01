@@ -17,7 +17,11 @@ from cli.prompts import detect_asset_type
 from tradingagents.agents.context import build_instrument_context
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_details, get_mutual_fund_nav_df
-from tradingagents.dataflows.vendors.etf_vendor import get_etf_details
+from tradingagents.dataflows.vendors.etf_vendor import (
+    find_dynamic_etf_peers,
+    get_etf_cluster,
+    get_etf_details,
+)
 from tradingagents.dataflows.vendors.reddit import _clean_search_ticker, subreddits_for
 
 
@@ -136,6 +140,46 @@ class TestEtfDetails:
         assert details["canonical_symbol"] == "NIFTYBEES.NS"
         assert details["current_price"] == 252.40
         assert "Nifty 50" in details["underlying_benchmark"]
+
+
+class TestDynamicEtfPeers:
+    def test_get_etf_cluster_keywords(self):
+        assert get_etf_cluster("GOLDBEES", "Gold") == "gold"
+        assert get_etf_cluster("SILVERBEES", "Domestic price of Silver") == "silver"
+        assert get_etf_cluster("NIFTYBEES", "Nifty 50 Index") == "nifty_50"
+        assert get_etf_cluster("BANKBEES", "Nifty Bank Index") == "banking"
+        assert get_etf_cluster("ITBEES", "Nifty IT TRI") == "it"
+        assert get_etf_cluster("AUTOBEES", "Nifty Auto TRI") == "auto"
+        assert get_etf_cluster("MON100", "Nasdaq 100") == "international"
+        assert get_etf_cluster("CPSEETF", "CPSE Index") == "psu_cpse"
+
+    @patch("tradingagents.dataflows.vendors.etf_vendor.fetch_nse_etf_directory")
+    def test_find_dynamic_etf_peers_ranks_by_live_turnover(self, mock_fetch):
+        # Simulated live outer feed from NSE
+        mock_fetch.return_value = [
+            {"symbol": "GOLDBEES", "assets": "Gold", "trdVal": 200000000, "ltP": 115.2, "per": -0.5},
+            {"symbol": "LOWVOLGOLD", "assets": "Gold", "trdVal": 5000000, "ltP": 110.0, "per": -0.8},
+            {"symbol": "HIGHVOLGOLD", "assets": "Gold", "trdVal": 600000000, "ltP": 118.0, "per": -0.4},
+            {"symbol": "MEDVOLGOLD", "assets": "Gold", "trdVal": 150000000, "ltP": 114.5, "per": -0.6},
+            {"symbol": "SILVERBEES", "assets": "Silver", "trdVal": 900000000, "ltP": 170.0, "per": -2.0},
+        ]
+
+        peers = find_dynamic_etf_peers("GOLDBEES", limit=3)
+        assert len(peers) == 3
+        # Excludes self (GOLDBEES) and different cluster (SILVERBEES)
+        # Ranks strictly by turnover descending: HIGHVOLGOLD (60 Cr) > MEDVOLGOLD (15 Cr) > LOWVOLGOLD (0.5 Cr)
+        assert peers[0]["ticker"] == "HIGHVOLGOLD"
+        assert peers[0]["turnover_cr"] == 60.0
+        assert peers[1]["ticker"] == "MEDVOLGOLD"
+        assert peers[1]["turnover_cr"] == 15.0
+        assert peers[2]["ticker"] == "LOWVOLGOLD"
+        assert peers[2]["turnover_cr"] == 0.5
+
+    @patch("tradingagents.dataflows.vendors.etf_vendor.fetch_nse_etf_directory")
+    def test_find_dynamic_etf_peers_empty_fallback(self, mock_fetch):
+        mock_fetch.return_value = []
+        peers = find_dynamic_etf_peers("UNKNOWN_ETF")
+        assert peers == []
 
 
 class TestInstrumentIdentityAndContext:

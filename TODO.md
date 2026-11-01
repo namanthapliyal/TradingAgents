@@ -2,14 +2,24 @@
 
 ## 📌 Pending Tasks
 
-- [ ] **Fix ETF Screener & Mutual Fund Analyzer in Web UI (`cli/web_app.py`)** *(Postponed per user request)*
-  - **Mutual Fund Details Key Alignment**: The backend `get_mutual_fund_details` in `tradingagents/dataflows/vendors/amfi_mf.py` returns flat fields (`scheme_name`, `fund_house`, `category`, `latest_nav`, `nav_date`, `returns_cagr`), whereas the frontend JS in `cli/web_app.py` expects nested `data.meta.*` and `data.returns.*`. Align the response model and frontend parser.
-  - **ETF Screener Fallback & Data Quality**: Ensure `get_etf_details` handles secondary market quotes reliably and falls back gracefully if Yahoo Finance rate-limits.
-  - **UI Verification**: Confirm 52-week range bars, trailing returns cards, and quick buttons display seamlessly.
+*(No blocking pending tasks)*
 
 ---
 
 ## ✅ Completed Tasks
+
+- [x] **Dynamic ETF Peer Discovery & Outer Feed Integration**:
+  - Removed all hardcoded ETF peer lists (`ETF_PEERS_MAP`).
+  - Added real-time outer source integration with NSE India (`/api/etf`), providing live orderflow turnover (`trdVal`), day change %, and underlying benchmark assets.
+  - Dynamically clusters ETFs (Gold, Silver, Banking, IT, Auto, Pharma, CPSE/PSU, Nifty 50, etc.) and ranks peer alternatives by live turnover descending.
+  - Enriched ETF Screener card with Day Range, Turnover (₹ Cr), Liquidity Rating, 50/200 DMA, 14-day RSI, and clickable peer alternative chips.
+- [x] **Mutual Fund Analyzer Dual-Schema Compatibility**:
+  - Aligned `/api/mf/details` and frontend `fetchMFDetails` to seamlessly support both flat AMFI keys (`latest_nav`, `nav_date`, `returns_cagr`, `scheme_name`, `fund_house`, `category`) and nested frontend keys (`current_nav`, `last_updated`, `returns`, `meta`).
+  - Fixes missing NAV (₹0.00) and N/A CAGR returns for scheme searches (e.g. "Parag Parikh Flexi Cap").
+- [x] **12-Agent Multi-Agent Workflow Adaptation for MFs and ETFs**:
+  - Added Asset Class Mode selector (`Auto-Detect`, `Equity Stock`, `Indian Mutual Fund`, `Exchange Traded Fund`, `Crypto`) to Analysis Parameters.
+  - Forwarded `asset_type` to `_run_pipeline_worker` and `graph.create_run_state`, stopping hardcoded `"stock"` state initialization.
+  - Added **"Run 12-Agent Analysis"** one-click buttons on both the Mutual Fund card and ETF card to immediately run the 12-agent research, bull/bear debate, risk committee, and portfolio manager on mutual fund schemes and ETFs.
 
 - [x] **Context Window Expansion to 16k Tokens**: Injected `options: {"num_ctx": 16384}` into `LocalCompatibleChatOpenAI` and documented Colab 16k setup.
 - [x] **Direct PM Decision Fallback**: Avoid full 15-agent restart on Phase V stream errors by synthesizing directly from accumulated debate state.
@@ -18,3 +28,4 @@
 - [x] **Macro Commodities Pre-fetch**: Injected macro snapshot into News Analyst prompt for metals/commodities/dollar dynamics.
 - [x] **Multi-Vendor News Fallback**: Yahoo Finance -> Google News RSS -> DuckDuckGo search fallback cascade.
 - [x] **Pandas4Warning Suppression**: Overrode yfinance internal deprecation warnings filter for clean logs.
+

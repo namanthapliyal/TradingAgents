@@ -16,6 +16,7 @@ import contextlib
 import datetime
 import json
 import os
+import re
 import threading
 import time
 import warnings
@@ -32,7 +33,6 @@ from langchain_core.callbacks import BaseCallbackHandler
 from cli.display import classify_message_type
 from tradingagents.default_config import build_default_config
 from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.reporting import format_duration
 from tradingagents.report_html import (
     _COMPANY,
     _CSS,
@@ -239,9 +239,17 @@ GLOBAL_STATE = AnalysisState()
 
 def _run_pipeline_worker(params: dict[str, Any]) -> None:
     """Execute the TradingAgents graph in a background thread with live terminal & file logging."""
-    ticker = params.get("ticker", "VEDPOWER").strip().upper()
+    ticker = params.get("ticker", "VEDPOWER").strip()
     trade_date = params.get("date") or datetime.date.today().isoformat()
     host_mode = params.get("host", "colab").strip().lower()
+    asset_type = params.get("asset_type", "auto").strip().lower()
+
+    if asset_type in ("auto", "", "detect"):
+        from cli.prompts import detect_asset_type
+
+        detected = detect_asset_type(ticker)
+        asset_type = detected.value
+
     analysts = params.get("analysts", ["market", "news", "fundamentals"])
     if isinstance(analysts, str):
         analysts = [a.strip() for a in analysts.split(",") if a.strip()]
@@ -251,7 +259,8 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
     # Dedicated log file
     log_dir = Path.home() / ".tradingagents" / "logs" / "web_runs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"run_{ticker}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    safe_name = re.sub(r"[^\w\-]", "_", ticker)
+    log_file = log_dir / f"run_{safe_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     log_file.touch(exist_ok=True)
 
     with GLOBAL_STATE.lock:
@@ -270,14 +279,16 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
 
     print("\n" + "=" * 70, flush=True)
     print(
-        f"🚀 [TRADEX RUN STARTED] Ticker: {ticker} | Date: {trade_date} | Host: {host_mode.upper()}",
+        f"🚀 [TRADEX RUN STARTED] Ticker: {ticker} [{asset_type.upper()}] | Date: {trade_date} | Host: {host_mode.upper()}",
         flush=True,
     )
     print(f"📝 Live Run Log File: {log_file}", flush=True)
     print("=" * 70 + "\n", flush=True)
 
     GLOBAL_STATE.add_message(
-        "System", f"Starting multi-agent trading analysis for {ticker} ({trade_date})...", "system"
+        "System",
+        f"Starting 12-agent multi-agent analysis for {ticker} [Mode: {asset_type.upper()}] ({trade_date})...",
+        "system",
     )
     GLOBAL_STATE.add_message("Log", f"Live run log active at: {log_file}", "system")
     start_time = time.time()
@@ -334,7 +345,7 @@ def _run_pipeline_worker(params: dict[str, Any]) -> None:
             "system",
         )
 
-        init_agent_state = graph.create_run_state(ticker, trade_date, "stock", None)
+        init_agent_state = graph.create_run_state(ticker, trade_date, asset_type, None)
         args = graph.propagator.get_graph_args(callbacks=[callback_handler])
 
         final_state = None
@@ -734,6 +745,37 @@ class WebDashboardHandler(BaseHTTPRequestHandler):
                 from tradingagents.dataflows.vendors.amfi_mf import get_mutual_fund_details
 
                 details = get_mutual_fund_details(code)
+                # Dual compatibility: provide both flat and nested schemas
+                if isinstance(details, dict):
+                    if "current_nav" not in details and "latest_nav" in details:
+                        details["current_nav"] = details["latest_nav"]
+                    if "latest_nav" not in details and "current_nav" in details:
+                        details["latest_nav"] = details["current_nav"]
+                    if "last_updated" not in details and "nav_date" in details:
+                        details["last_updated"] = details["nav_date"]
+                    if "nav_date" not in details and "last_updated" in details:
+                        details["nav_date"] = details["last_updated"]
+                    if "returns" not in details and "returns_cagr" in details:
+                        details["returns"] = details["returns_cagr"]
+                    if "returns_cagr" not in details and "returns" in details:
+                        details["returns_cagr"] = details["returns"]
+
+                    existing_meta = details.get("meta")
+                    if isinstance(existing_meta, dict):
+                        if "scheme_name" not in details and "scheme_name" in existing_meta:
+                            details["scheme_name"] = existing_meta["scheme_name"]
+                        if "fund_house" not in details and "fund_house" in existing_meta:
+                            details["fund_house"] = existing_meta["fund_house"]
+                        if "category" not in details and "scheme_category" in existing_meta:
+                            details["category"] = existing_meta["scheme_category"]
+                    else:
+                        details["meta"] = {
+                            "scheme_name": details.get("scheme_name"),
+                            "scheme_category": details.get("category"),
+                            "fund_house": details.get("fund_house"),
+                            "scheme_type": details.get("scheme_type"),
+                            "isin_growth": details.get("isin_growth"),
+                        }
                 self._send_json(details)
             except Exception as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -960,18 +1002,36 @@ DASHBOARD_HTML = """<!doctype html>
 
         <!-- Ticker Input & Presets -->
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1.5">Ticker / Asset Symbol</label>
+          <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+            <span>Ticker / Asset Symbol / Scheme</span>
+            <span class="text-[10px] text-slate-500 font-normal">Stocks, ETFs, Mutual Funds</span>
+          </label>
           <div class="relative">
             <input type="text" id="ticker-input" value="VEDPOWER" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:border-emerald-500 focus:outline-none transition uppercase">
             <span class="absolute right-3 top-2.5 text-xs text-slate-500">e.g. VEDPOWER</span>
           </div>
-          <div class="flex flex-wrap gap-1.5 mt-2">
-            <button onclick="setTicker('VEDPOWER')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">VEDPOWER (NSE)</button>
+          <div id="ticker-presets-container" class="flex flex-wrap gap-1.5 mt-2">
+            <button onclick="setTicker('VEDPOWER')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">VEDPOWER</button>
             <button onclick="setTicker('RELIANCE.NS')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">RELIANCE</button>
-            <button onclick="setTicker('TCS.NS')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">TCS</button>
-            <button onclick="setTicker('HDFCBANK.NS')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">HDFC Bank</button>
-            <button onclick="setTicker('NVDA')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">NVDA (US)</button>
+            <button onclick="setTicker('GOLDBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">GOLDBEES (ETF)</button>
+            <button onclick="setTicker('122639', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Parag Parikh (MF)</button>
+            <button onclick="setTicker('120828', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Quant Small (MF)</button>
           </div>
+        </div>
+
+        <!-- Asset Class Mode -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+            <span>Asset Class Mode</span>
+            <span id="asset-type-badge" class="text-[10px] text-teal-400 font-mono">Auto-Detect</span>
+          </label>
+          <select id="asset-type-select" onchange="updateAssetPresets()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none">
+            <option value="auto">Auto-Detect (Equities, AMFI Funds, ETFs)</option>
+            <option value="stock">Equity Stock (NSE / BSE / US)</option>
+            <option value="mutual_fund">Indian Mutual Fund (AMFI NAV & Schemes)</option>
+            <option value="etf">Exchange Traded Fund (ETF)</option>
+            <option value="crypto">Cryptocurrency</option>
+          </select>
         </div>
 
         <!-- LLM Host Switcher -->
@@ -1206,10 +1266,15 @@ DASHBOARD_HTML = """<!doctype html>
             <h3 id="mf-scheme-name" class="text-lg font-bold text-white">Scheme Name</h3>
             <p id="mf-meta" class="text-xs text-slate-400 mt-0.5">Fund House • Scheme Category</p>
           </div>
-          <div class="text-right">
-            <div class="text-xs text-slate-400">Current NAV</div>
-            <div id="mf-nav" class="text-2xl font-bold text-emerald-400">₹0.00</div>
-            <div id="mf-nav-date" class="text-[10px] text-slate-500">As of Date</div>
+          <div class="flex items-center gap-4">
+            <button onclick="launchMFAnalysis()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-teal-500/20 transition cursor-pointer">
+              <i class="fa-solid fa-robot"></i> Run 12-Agent Analysis
+            </button>
+            <div class="text-right">
+              <div class="text-xs text-slate-400">Current NAV</div>
+              <div id="mf-nav" class="text-2xl font-bold text-emerald-400">₹0.00</div>
+              <div id="mf-nav-date" class="text-[10px] text-slate-500">As of Date</div>
+            </div>
           </div>
         </div>
 
@@ -1285,40 +1350,150 @@ DASHBOARD_HTML = """<!doctype html>
 
     <!-- ETF Results Card -->
     <div id="etf-results" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+      <!-- Header Row -->
       <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-4 gap-4">
         <div>
-          <div class="flex items-center gap-2">
-            <h3 id="etf-name" class="text-xl font-bold text-white">Nippon India ETF Nifty 50 BeES</h3>
-            <span id="etf-badge" class="px-2 py-0.5 rounded text-[11px] bg-teal-500/20 text-teal-300 border border-teal-500/30">Large Cap Equity</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 id="etf-name" class="text-xl font-bold text-white">ETF Name</h3>
+            <span id="etf-badge" class="px-2 py-0.5 rounded text-[11px] bg-teal-500/20 text-teal-300 border border-teal-500/30">Asset Class</span>
+            <span id="etf-symbol-badge" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-300 font-mono border border-slate-700">TICKER.NS</span>
           </div>
-          <p id="etf-benchmark" class="text-xs text-slate-400 mt-1">Underlying: Nifty 50 Index • NSE India</p>
+          <p id="etf-benchmark" class="text-xs text-slate-400 mt-1">Underlying: Benchmark Index • NSE India</p>
         </div>
-        <div class="text-right">
-          <div class="text-xs text-slate-400">Current Market Price</div>
-          <div id="etf-price" class="text-3xl font-bold text-white">₹0.00</div>
-        </div>
-      </div>
-
-      <!-- 52-Week Range Gauge -->
-      <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-        <div class="flex justify-between text-xs text-slate-400">
-          <span>52-Week Low: <strong id="etf-low" class="text-white">₹0.00</strong></span>
-          <span>52-Week High: <strong id="etf-high" class="text-white">₹0.00</strong></span>
-        </div>
-        <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
-          <div id="etf-range-bar" class="bg-gradient-to-r from-teal-500 to-emerald-400 h-2.5 rounded-full" style="width: 50%"></div>
+        <div class="flex items-center gap-4">
+          <button onclick="launchETFAnalysis()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-teal-500/20 transition cursor-pointer">
+            <i class="fa-solid fa-robot"></i> Run 12-Agent Analysis
+          </button>
+          <div class="text-right">
+            <div class="text-xs text-slate-400">Current Market Price</div>
+            <div class="flex items-baseline justify-end gap-2">
+              <div id="etf-price" class="text-2xl font-bold text-white">₹0.00</div>
+              <span id="etf-change" class="text-xs font-semibold text-slate-400">--</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Volume & Liquidity -->
+      <!-- Intraday Price Action & Liquidity Row -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="text-xs text-slate-400 flex items-center justify-between">
+            <span>Today's Range (Low - High)</span>
+            <i class="fa-solid fa-arrows-left-right text-slate-500"></i>
+          </div>
+          <div id="etf-day-range" class="text-base font-bold text-slate-200">₹0.00 — ₹0.00</div>
+          <div class="text-[11px] text-slate-500">Prev Close: <span id="etf-prev-close" class="text-slate-300">₹0.00</span></div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="text-xs text-slate-400 flex items-center justify-between">
+            <span>Trading Volume & Avg</span>
+            <i class="fa-solid fa-chart-column text-slate-500"></i>
+          </div>
+          <div class="flex items-baseline justify-between">
+            <div id="etf-volume" class="text-base font-bold text-slate-200">--</div>
+            <span class="text-[11px] text-slate-400">Avg: <strong id="etf-avg-volume" class="text-slate-300">--</strong></span>
+          </div>
+          <div class="text-[11px] text-slate-500">Shares traded today vs 30-day average</div>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+          <div class="text-xs text-slate-400 flex items-center justify-between">
+            <span>Daily Turnover & Liquidity</span>
+            <i class="fa-solid fa-droplet text-teal-400"></i>
+          </div>
+          <div id="etf-turnover" class="text-base font-bold text-teal-300">₹0.00 Cr</div>
+          <div id="etf-liquidity-rating" class="text-[11px] font-medium text-emerald-400">Liquidity Rating</div>
+        </div>
+      </div>
+
+      <!-- 52-Week Range & Technical Moving Averages Row -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800">
-          <div class="text-xs text-slate-400">Trading Volume Today</div>
-          <div id="etf-volume" class="text-lg font-bold text-slate-200 mt-1">--</div>
+        <!-- 52-Week Range Gauge -->
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-400">52-Week Channel:</span>
+            <span id="etf-channel-pct" class="text-teal-400 font-semibold">50% in range</span>
+          </div>
+          <div class="flex justify-between text-xs text-slate-400">
+            <span>Low: <strong id="etf-low" class="text-white">₹0.00</strong></span>
+            <span>High: <strong id="etf-high" class="text-white">₹0.00</strong></span>
+          </div>
+          <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+            <div id="etf-range-bar" class="bg-gradient-to-r from-teal-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500" style="width: 50%"></div>
+          </div>
         </div>
-        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800">
-          <div class="text-xs text-slate-400">Average Daily Volume</div>
-          <div id="etf-avg-volume" class="text-lg font-bold text-slate-200 mt-1">--</div>
+
+        <!-- Technical Momentum & Moving Averages -->
+        <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-400 font-semibold uppercase tracking-wider">Trend & Momentum:</span>
+            <span id="etf-trend-stance" class="text-emerald-400 font-bold">Consolidating</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 pt-1 text-center">
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">50 DMA</div>
+              <div id="etf-dma-50" class="text-xs font-bold text-slate-200 mt-0.5">--</div>
+              <div id="etf-dma-50-diff" class="text-[10px] text-slate-500 mt-0.5">--</div>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">200 DMA</div>
+              <div id="etf-dma-200" class="text-xs font-bold text-slate-200 mt-0.5">--</div>
+              <div id="etf-dma-200-diff" class="text-[10px] text-slate-500 mt-0.5">--</div>
+            </div>
+            <div class="p-2 rounded-lg bg-slate-900 border border-slate-800/80">
+              <div class="text-[10px] text-slate-400">14-Day RSI</div>
+              <div id="etf-rsi-14" class="text-xs font-bold text-slate-200 mt-0.5">--</div>
+              <div id="etf-rsi-signal" class="text-[10px] text-slate-500 mt-0.5">Neutral</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trailing Historical Returns -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-teal-400"></i> Trailing Historical Returns
+        </h4>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-[11px] text-slate-400">1 Week</div>
+            <div id="etf-ret-1w" class="text-base font-bold text-slate-500 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-[11px] text-slate-400">1 Month</div>
+            <div id="etf-ret-1m" class="text-base font-bold text-slate-500 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-[11px] text-slate-400">3 Months</div>
+            <div id="etf-ret-3m" class="text-base font-bold text-slate-500 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-[11px] text-slate-400">6 Months</div>
+            <div id="etf-ret-6m" class="text-base font-bold text-slate-500 mt-1">--</div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+            <div class="text-[11px] text-slate-400">1 Year</div>
+            <div id="etf-ret-1y" class="text-base font-bold text-slate-500 mt-1">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Category Peer Alternatives (Ranked by Live Market Liquidity) -->
+      <div class="space-y-3 pt-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            <i class="fa-solid fa-arrows-split-up-and-left text-teal-400"></i> Category Benchmark Alternatives (Ranked by Live Market Liquidity)
+          </h4>
+          <span class="text-[11px] text-slate-500 flex items-center gap-1.5">
+            <i class="fa-solid fa-satellite-dish text-emerald-400"></i> Live outer feed from NSE India
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">
+          Ranked dynamically by live orderflow turnover in ₹ Crore. High turnover ensures tighter bid-ask spreads and minimal tracking error.
+        </p>
+        <div id="etf-peers-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <!-- Populated dynamically via JS -->
         </div>
       </div>
     </div>
@@ -1500,8 +1675,51 @@ DASHBOARD_HTML = """<!doctype html>
       document.getElementById(`view-${tab}`).classList.remove('hidden');
     }
 
-    function setTicker(t) {
+    function updateAssetPresets() {
+      const select = document.getElementById('asset-type-select');
+      const badge = document.getElementById('asset-type-badge');
+      const container = document.getElementById('ticker-presets-container');
+      if (!select || !badge || !container) return;
+      const mode = select.value;
+
+      if (mode === 'mutual_fund') {
+        badge.innerText = 'AMFI NAV Mode';
+        badge.className = 'text-[10px] text-amber-400 font-mono';
+        container.innerHTML = `
+          <button onclick="setTicker('122639', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Parag Parikh Flexi Cap</button>
+          <button onclick="setTicker('120828', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Quant Small Cap</button>
+          <button onclick="setTicker('119598', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">SBI Bluechip</button>
+          <button onclick="setTicker('118778', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Nippon Small Cap</button>
+        `;
+      } else if (mode === 'etf') {
+        badge.innerText = 'ETF Mode';
+        badge.className = 'text-[10px] text-teal-400 font-mono';
+        container.innerHTML = `
+          <button onclick="setTicker('GOLDBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">GOLDBEES (Gold)</button>
+          <button onclick="setTicker('SILVERBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">SILVERBEES (Silver)</button>
+          <button onclick="setTicker('NIFTYBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">NIFTYBEES (Nifty 50)</button>
+          <button onclick="setTicker('BANKBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">BANKBEES (Bank)</button>
+          <button onclick="setTicker('ITBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">ITBEES (Tech)</button>
+        `;
+      } else {
+        badge.innerText = mode === 'stock' ? 'Equities Mode' : 'Auto-Detect';
+        badge.className = 'text-[10px] text-emerald-400 font-mono';
+        container.innerHTML = `
+          <button onclick="setTicker('VEDPOWER')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">VEDPOWER</button>
+          <button onclick="setTicker('RELIANCE.NS')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">RELIANCE</button>
+          <button onclick="setTicker('TCS.NS')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">TCS</button>
+          <button onclick="setTicker('GOLDBEES.NS', 'etf')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800 transition">GOLDBEES (ETF)</button>
+          <button onclick="setTicker('122639', 'mutual_fund')" class="px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-800 transition">Parag Parikh (MF)</button>
+        `;
+      }
+    }
+
+    function setTicker(t, assetType = null) {
       document.getElementById('ticker-input').value = t;
+      if (assetType && document.getElementById('asset-type-select')) {
+        document.getElementById('asset-type-select').value = assetType;
+        updateAssetPresets();
+      }
     }
 
     function setETF(t) {
@@ -1559,6 +1777,7 @@ DASHBOARD_HTML = """<!doctype html>
       const date = document.getElementById('date-input').value;
       const depth = document.getElementById('depth-select').value;
       const runBtn = document.getElementById('run-btn');
+      const assetType = document.getElementById('asset-type-select') ? document.getElementById('asset-type-select').value : 'auto';
 
       const analysts = [];
       if (document.getElementById('analyst-market').checked) analysts.push('market');
@@ -1575,8 +1794,24 @@ DASHBOARD_HTML = """<!doctype html>
         const res = await fetch('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker, date, depth, analysts, host: activeHost }),
+          body: JSON.stringify({ ticker, date, depth, analysts, host: activeHost, asset_type: assetType }),
         });
+        const data = await res.json();
+        if (data.error) {
+          alert(data.error);
+          runBtn.disabled = false;
+          runBtn.innerHTML = '<i class="fa-solid fa-play"></i> Run Multi-Agent Analysis';
+          return;
+        }
+
+        switchTab('live');
+        startPolling();
+      } catch (err) {
+        alert('Failed to connect: ' + err);
+        runBtn.disabled = false;
+        runBtn.innerHTML = '<i class="fa-solid fa-play"></i> Run Multi-Agent Analysis';
+      }
+    }
         const data = await res.json();
         if (data.error) {
           alert(data.error);
@@ -1700,6 +1935,16 @@ DASHBOARD_HTML = """<!doctype html>
       fetchMFDetails();
     }
 
+    function launchMFAnalysis() {
+      const q = document.getElementById('mf-query').value.trim();
+      if (!q) return;
+      switchNav('ticker');
+      document.getElementById('ticker-input').value = q;
+      document.getElementById('asset-type-select').value = 'mutual_fund';
+      updateAssetPresets();
+      startAnalysis();
+    }
+
     async function fetchMFDetails() {
       const q = document.getElementById('mf-query').value.trim();
       if (!q) return;
@@ -1716,12 +1961,18 @@ DASHBOARD_HTML = """<!doctype html>
         }
 
         const meta = data.meta || {};
-        document.getElementById('mf-scheme-name').innerText = meta.scheme_name || q;
-        document.getElementById('mf-meta').innerText = `${meta.fund_house || 'Indian AMC'} • ${meta.scheme_category || 'Equity'}`;
-        document.getElementById('mf-nav').innerText = `₹${parseFloat(data.current_nav || 0).toFixed(2)}`;
-        document.getElementById('mf-nav-date').innerText = `As of ${data.last_updated || 'Latest'}`;
+        const schemeName = data.scheme_name || meta.scheme_name || q;
+        const fundHouse = data.fund_house || meta.fund_house || 'Indian AMC';
+        const category = data.category || meta.scheme_category || 'Mutual Fund';
+        const nav = (data.latest_nav !== undefined && data.latest_nav !== null) ? data.latest_nav : data.current_nav;
+        const navDate = data.nav_date || data.last_updated || 'Latest';
+        const ret = data.returns_cagr || data.returns || {};
 
-        const ret = data.returns || {};
+        document.getElementById('mf-scheme-name').innerText = schemeName;
+        document.getElementById('mf-meta').innerText = `${fundHouse} • ${category}`;
+        document.getElementById('mf-nav').innerText = `₹${parseFloat(nav || 0).toFixed(2)}`;
+        document.getElementById('mf-nav-date').innerText = `As of ${navDate}`;
+
         setReturn('mf-ret-1m', ret['1M']);
         setReturn('mf-ret-6m', ret['6M']);
         setReturn('mf-ret-1y', ret['1Y']);
@@ -1729,7 +1980,7 @@ DASHBOARD_HTML = """<!doctype html>
         setReturn('mf-ret-5y', ret['5Y']);
 
         document.getElementById('mf-strategy').innerText = data.recommendation_rationale ||
-          `This ${meta.scheme_category || 'fund'} is managed by ${meta.fund_house || 'AMC'}. Real-time tracking through AMFI NAV feeds shows consistent historical returns with risk alignment.`;
+          `This ${category} is managed by ${fundHouse}. Real-time tracking through AMFI NAV feeds shows consistent historical returns with risk alignment.`;
 
         resultsDiv.classList.remove('hidden');
       } catch (err) {
@@ -1739,6 +1990,7 @@ DASHBOARD_HTML = """<!doctype html>
 
     function setReturn(id, val) {
       const el = document.getElementById(id);
+      if (!el) return;
       if (val !== undefined && val !== null) {
         const num = parseFloat(val);
         el.innerText = `${num >= 0 ? '+' : ''}${num.toFixed(1)}%`;
@@ -1752,6 +2004,17 @@ DASHBOARD_HTML = """<!doctype html>
     // ==========================================
     // ETF CLIENT LOGIC
     // ==========================================
+    function launchETFAnalysis() {
+      const ticker = document.getElementById('etf-input').value.trim();
+      if (!ticker) return;
+      const canonical = ticker.endsWith('.NS') || ticker.endsWith('.BO') ? ticker : `${ticker}.NS`;
+      switchNav('ticker');
+      document.getElementById('ticker-input').value = canonical;
+      document.getElementById('asset-type-select').value = 'etf';
+      updateAssetPresets();
+      startAnalysis();
+    }
+
     async function fetchETFDetails() {
       const ticker = document.getElementById('etf-input').value.trim();
       if (!ticker) return;
@@ -1768,25 +2031,134 @@ DASHBOARD_HTML = """<!doctype html>
         }
 
         document.getElementById('etf-name').innerText = data.name || ticker;
-        document.getElementById('etf-badge').innerText = data.asset_class || 'ETF';
-        document.getElementById('etf-benchmark').innerText = `Underlying: ${data.underlying_benchmark || 'Index'} • ${data.exchange || 'NSE'}`;
+        document.getElementById('etf-badge').innerText = data.asset_class || 'Exchange Traded Fund';
+        const symBadge = document.getElementById('etf-symbol-badge');
+        if (symBadge) symBadge.innerText = data.canonical_symbol || `${ticker}.NS`;
+        document.getElementById('etf-benchmark').innerText = `Underlying: ${data.underlying_benchmark || 'Broad Market Index'} • ${data.exchange || 'NSE / BSE India'}`;
         document.getElementById('etf-price').innerText = `₹${parseFloat(data.current_price || 0).toFixed(2)}`;
 
+        // Day change (+/-)
+        const dayChg = parseFloat(data.day_change || 0);
+        const dayPct = parseFloat(data.day_change_percent || 0);
+        const chgEl = document.getElementById('etf-change');
+        if (chgEl) {
+          chgEl.innerText = `${dayChg >= 0 ? '+' : ''}₹${dayChg.toFixed(2)} (${dayPct >= 0 ? '+' : ''}${dayPct.toFixed(2)}%)`;
+          chgEl.className = dayPct >= 0 ? "text-xs font-semibold text-emerald-400" : "text-xs font-semibold text-rose-400";
+        }
+
+        // Intraday Range & Prev Close
+        const dLow = parseFloat(data.day_low || 0);
+        const dHigh = parseFloat(data.day_high || 0);
+        const pClose = parseFloat(data.prev_close || 0);
+        const dayRangeEl = document.getElementById('etf-day-range');
+        if (dayRangeEl) dayRangeEl.innerText = `₹${dLow.toFixed(2)} — ₹${dHigh.toFixed(2)}`;
+        const prevCloseEl = document.getElementById('etf-prev-close');
+        if (prevCloseEl) prevCloseEl.innerText = `₹${pClose.toFixed(2)}`;
+
+        // Volume & Turnover
+        document.getElementById('etf-volume').innerText = (data.volume || 0).toLocaleString();
+        document.getElementById('etf-avg-volume').innerText = (data.average_volume || 0).toLocaleString();
+        const tCr = parseFloat(data.turnover_cr || 0);
+        const turnoverEl = document.getElementById('etf-turnover');
+        if (turnoverEl) turnoverEl.innerText = `₹${tCr.toFixed(2)} Cr`;
+        const liqEl = document.getElementById('etf-liquidity-rating');
+        if (liqEl) liqEl.innerText = data.liquidity_rating || 'Moderate Liquidity';
+
+        // 52-Week Range Channel
         const high = parseFloat(data['52_week_high'] || 0);
         const low = parseFloat(data['52_week_low'] || 0);
         const curr = parseFloat(data.current_price || 0);
-
         document.getElementById('etf-low').innerText = `₹${low.toFixed(2)}`;
         document.getElementById('etf-high').innerText = `₹${high.toFixed(2)}`;
 
-        let pct = 50;
+        let pct = parseFloat(data['52_week_range_pct'] || 50);
         if (high > low) {
           pct = Math.max(0, Math.min(100, Math.round(((curr - low) / (high - low)) * 100)));
         }
+        const chanEl = document.getElementById('etf-channel-pct');
+        if (chanEl) chanEl.innerText = `${pct}% in 52W range`;
         document.getElementById('etf-range-bar').style.width = `${pct}%`;
 
-        document.getElementById('etf-volume').innerText = (data.volume || 0).toLocaleString();
-        document.getElementById('etf-avg-volume').innerText = (data.average_volume || 0).toLocaleString();
+        // Technical Moving Averages & RSI
+        const trendEl = document.getElementById('etf-trend-stance');
+        if (trendEl) trendEl.innerText = data.trend_signal || 'Consolidating';
+        const dma50 = parseFloat(data.dma_50 || 0);
+        const dma200 = parseFloat(data.dma_200 || 0);
+        const dma50Diff = parseFloat(data.dma_50_diff || 0);
+        const dma200Diff = parseFloat(data.dma_200_diff || 0);
+        const dma50El = document.getElementById('etf-dma-50');
+        if (dma50El) dma50El.innerText = dma50 ? `₹${dma50.toFixed(2)}` : '--';
+        const dma50DiffEl = document.getElementById('etf-dma-50-diff');
+        if (dma50DiffEl) dma50DiffEl.innerText = dma50 ? `${dma50Diff >= 0 ? '+' : ''}${dma50Diff.toFixed(1)}% vs CMP` : '--';
+        const dma200El = document.getElementById('etf-dma-200');
+        if (dma200El) dma200El.innerText = dma200 ? `₹${dma200.toFixed(2)}` : '--';
+        const dma200DiffEl = document.getElementById('etf-dma-200-diff');
+        if (dma200DiffEl) dma200DiffEl.innerText = dma200 ? `${dma200Diff >= 0 ? '+' : ''}${dma200Diff.toFixed(1)}% vs CMP` : '--';
+
+        const rsi = data.rsi_14 !== null && data.rsi_14 !== undefined ? parseFloat(data.rsi_14) : null;
+        const rsiEl = document.getElementById('etf-rsi-14');
+        const rsiSig = document.getElementById('etf-rsi-signal');
+        if (rsiEl && rsiSig) {
+          if (rsi !== null) {
+            rsiEl.innerText = rsi.toFixed(1);
+            if (rsi <= 30) {
+              rsiSig.innerText = 'Oversold';
+              rsiSig.className = 'text-[10px] text-emerald-400 font-bold mt-0.5';
+            } else if (rsi >= 70) {
+              rsiSig.innerText = 'Overbought';
+              rsiSig.className = 'text-[10px] text-rose-400 font-bold mt-0.5';
+            } else {
+              rsiSig.innerText = 'Neutral Momentum';
+              rsiSig.className = 'text-[10px] text-slate-400 mt-0.5';
+            }
+          } else {
+            rsiEl.innerText = '--';
+            rsiSig.innerText = 'N/A';
+          }
+        }
+
+        // Trailing Returns
+        const ret = data.returns || {};
+        setReturn('etf-ret-1w', ret['1W']);
+        setReturn('etf-ret-1m', ret['1M']);
+        setReturn('etf-ret-3m', ret['3M']);
+        setReturn('etf-ret-6m', ret['6M']);
+        setReturn('etf-ret-1y', ret['1Y']);
+
+        // Dynamic Peer Alternatives (Outer source from NSE)
+        const peersList = document.getElementById('etf-peers-list');
+        if (peersList) {
+          peersList.innerHTML = '';
+          const peers = data.peers || [];
+          if (peers.length === 0) {
+            peersList.innerHTML = '<div class="col-span-full p-4 text-center text-xs text-slate-500 bg-slate-950 rounded-xl border border-slate-800">No category peer alternatives found in outer NSE feed.</div>';
+          } else {
+            peers.forEach(p => {
+              const sym = p.ticker || '';
+              const ltp = parseFloat(p.price || 0).toFixed(2);
+              const tVal = parseFloat(p.turnover_cr || 0).toFixed(2);
+              const chg = parseFloat(p.day_change_pct || 0);
+              const chgColor = chg >= 0 ? 'text-emerald-400' : 'text-rose-400';
+              const card = document.createElement('div');
+              card.className = "p-3 rounded-xl bg-slate-950 border border-slate-800 hover:border-teal-500/50 transition flex flex-col justify-between space-y-2 cursor-pointer group";
+              card.onclick = () => setETF(sym);
+              card.innerHTML = `
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-xs text-white group-hover:text-teal-400 transition">${sym}</span>
+                    <span class="text-[10px] font-semibold ${chgColor}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${p.name || sym}</div>
+                </div>
+                <div class="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px]">
+                  <span class="text-slate-200 font-semibold">₹${ltp}</span>
+                  <span class="text-teal-400 font-mono text-[10px]">₹${tVal} Cr</span>
+                </div>
+              `;
+              peersList.appendChild(card);
+            });
+          }
+        }
 
         resDiv.classList.remove('hidden');
       } catch (err) {
